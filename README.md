@@ -4,10 +4,21 @@ Our main goals of the project is to try to detect AI-generated texts, using the 
 
 ## Research Questions
 
+I think our main research question should be something like:
+
 * How does the detector's performance relate to the language of the input, and the languages the detector was trained on?
     - Do detectors still work if they were'nt trained on the input text's language.
     - Does the performance decrease when the input text's language was less prominent in the training data.
     - Is the detector performance the best for the language that the model was trained on the most (english probably).
+    - Etc.
+
+And we could also re-verify other findings:
+
+* Do the other findings in [Mireshghallah et al.](literature/2305.09859v4.pdf) hold in a multilingual setting?
+    - Do the smaller detector models still perform better than the bigger ones.
+    - Is it still beneficial if the detector model has a similar architecture as the model that generated the fake text?
+    - Is it still beneficial if the detector model was trained on a similar datasets as the model that generated the fake text?
+    - Etc.
 
 ## Datasets
 
