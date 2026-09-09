@@ -13,12 +13,12 @@ Our main goals of the project is to try to detect AI-generated texts, using the 
 
 We will be making use of the MULTITuDE dataset containing the following fields per sample
 
-'text' - a text sample,
-'label' - 0 for human-written text, 1 for machine-generated text,
-'multi_label' - a string representing a large language model that generated the text or the string "human" representing a human-written text,
-'split' - a string identifying train or test split of the dataset for the purpose of training and evaluation respectively,
-'language' - the ISO 639-1 language code identifying the language of the given text,
-'length' - word count of the given text,
-'source' - a string identifying the source dataset / news medium of the given text.
+* 'text' - a text sample
+* 'label' - 0 for human-written text, 1 for machine-generated text,
+* 'multi_label' - a string representing a large language model that generated the text or the string "human" representing a human-written text,
+* 'split' - a string identifying train or test split of the dataset for the purpose of training and evaluation respectively,
+* 'language' - the ISO 639-1 language code identifying the language of the given text,
+* 'length' - word count of the given text,
+* 'source' - a string identifying the source dataset / news medium of the given text.
 
 For more detail check out the datasets [readme](./datasets/MULTITuDE/README.md).
