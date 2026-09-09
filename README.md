@@ -35,3 +35,7 @@ We will be making use of the MULTITuDE dataset containing the following fields p
 * 'source' - a string identifying the source dataset / news medium of the given text.
 
 For more detail check out the datasets [readme](./datasets/MULTITuDE/README.md).
+
+## Other
+
+I think there might be usefull literature and tools in this Github [repo](https://github.com/junchaoIU/LLM-generated-Text-Detection) containing links to all kinds of related papers and tools. 
