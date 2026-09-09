@@ -4,7 +4,10 @@ Our main goals of the project is to try to detect AI-generated texts, using the 
 
 ## Research Questions
 
-* How does the detector's performance relate to the language of the input, and the languages the detector was trained on. 
+* How does the detector's performance relate to the language of the input, and the languages the detector was trained on?
+    - Do detectors still work if they were'nt trained on the input text's language.
+    - Does the performance decrease when the input text's language was less prominent in the training data.
+    - Is the detector performance the best for the language that the model was trained on the most (english probably).
 
 ## Datasets
 
