@@ -1,4 +1,4 @@
-# Detector Model (using Curvature)
+# Detector (using Curvature)
 
 This folder will hold code and files related to the detector model, which takes a piece of text and answers whether the text is human written or not. A simplified example, where details like tokenization are left out:
 
