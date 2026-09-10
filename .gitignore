@@ -1,2 +1,41 @@
+# Datasets
 multitude.csv
 multisocial.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+build/
+dist/
+
+# Testing / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment / secrets
+.env
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Logs / experiment artifacts
+*.log
+wandb/
+runs/
+checkpoints/
+outputs/
