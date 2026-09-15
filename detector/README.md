@@ -8,7 +8,8 @@ def detect(
     str: str,
     dm: DetectorModel,
     pm: PerturbationModel,
-    n_perturbations: int
+    n_perturbations: int,
+    curvature_threshold: float
 ) -> bool:
     perturbed_texts: list[str] = pm.perturb(text)
     original_log_probability: float = dm.log_probability(text)
@@ -37,6 +38,46 @@ We'll be focussing less on the architectural side, but more on the (training) da
 * A version trained on most seen languages (english, french, spanish, portuguese)
 * A version also trained on less seen languages (dutch, mongolian, etc)
 
+## Sequence Length Bias
+
+There is a little caveat we have to deal with. When you perturb the text, you might end up with a text that (after tokenization) consists of more or less tokens than before. Longer sequences of tokens usually means that the joint probability is lower (more values <1 in the product), so this introduces noise to the curvature metric. It doesn't neccesarily introduce bias, since this noise is applied both to the human texts and generated texts, but it still introduces variance which we'd like to eliminate. 
+
+In [Mireshghallah et al.](literature/2305.09859v4.pdf) they don't address this problem really. So I assume they just ignore the added variance. So that's a point we can improve on compared to them. For smaller perturbation masks (1% or 2%) it will probably not matter, but they also test 90%, where is could definetely help. 
+
+In practise this means that we have two options to eliminate this bias. 
+
+1. The first option is to make sure in some way that the number of tokens stays the same when when perturbing. But this is hard to do, since you'd probably need the perturbation model and the detector model should have the exact same vocabulary/tokenizer. If they don't, then the perturbation model might keep the number of tokens the same but the tokenizer of the detector model might get totally different numbers of tokens. Also we have to pass around raw Tensors or lists of tokens fo different types which is hard compared to just strings. 
+2. The second option is to normalize the (log) joint probabilites in some way, by for instance dividing the log probability by the sequence lenght. I think this is the easiest and most suitable way. 
+
+If we'd go with solution 2, we would get something like 
+
+```python 
+
+def detect(
+    str: str,
+    dm: DetectorModel,
+    pm: PerturbationModel,
+    n_perturbations: int, 
+    curvature_threshold: float
+) -> bool:
+    perturbed_texts: list[str] = pm.perturb(text)
+    original_average_log_probability: float = dm.average_log_probability_per_token(text)
+    perturbed_normalized_log_probabilities: list[float] = [dm.average_log_probability_per_token(t) for t in perturbed_texts]
+    curvature = original_average_log_probability - sum(perturbed_average_log_probabilities) / n_perturbations
+    return curavture > curvature_threshold:
+
+
+class DetectorModel:
+    def average_log_probability_per_token(self, text: str) -> float:
+        """
+        Outputs the average log joint probability for the whole text, where
+        mean(log p(ti | ti-1, ... t0)) = sum_i log p(ti | ti-1, ... t0) / N
+        So e.g. the softmax probabilites that are outputted for every token 
+        by an LLM.
+        """
+        pass
+
+```
 
 
 
