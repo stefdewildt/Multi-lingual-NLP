@@ -1,6 +1,6 @@
 # MultiSocial 
 
-In this folder we'll put artifacts related to the MultiSocial dataset. Paste your downloaded files here in `./multisocial.csv`.
+In this folder we'll put artifacts related to the MultiSocial dataset. Paste your downloaded files here in `./multisocial.csv` (Pepijn: when I downloaded it I got `multisocial_anonymized.csv`, I assume this is the same?). 
 
 ## Description of MultiSocial
 
