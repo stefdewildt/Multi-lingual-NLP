@@ -1,6 +1,6 @@
 """
 
-This file should contain some data loading utilities, for loading and using data from the MULTITuDE dataset.
+This file should contain some data loading utilities, for loading and using data from the MULTITuDE v3 dataset.
 
 """
 
@@ -17,19 +17,40 @@ DEFAULT_CSV_PATH = Path(__file__).resolve().parent / "MULTITuDE" / "multitude.cs
 Split = Literal["train", "test"]
 """The 'split' column of the dataset."""
 
-Language = Literal["en", "es", "ru", "nl", "ca", "cs", "de", "zh", "pt", "ar", "uk"]
+Language = Literal[
+    "ar",
+    "bg",
+    "ca",
+    "cs",
+    "de",
+    "el",
+    "en",
+    "es",
+    "ga",
+    "gd",
+    "hr",
+    "hu",
+    "nl",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sl",
+    "uk",
+    "zh",
+]
 """The 'language' column of the dataset (ISO 639-1 codes)."""
 
 GeneratorModel = Literal[
-    "gpt-3.5-turbo",
-    "gpt-4",
-    "text-davinci-003",
-    "alpaca-lora-30b",
-    "vicuna-13b",
-    "opt-66b",
-    "llama-65b",
-    "opt-iml-max-1.3b",
     "human",
+    "aya-101",
+    "Mistral-7B-Instruct-v0.2",
+    "gpt-3.5-turbo-0125",
+    "v5-Eagle-7B-HF",
+    "vicuna-13b",
+    "opt-iml-max-30b",
+    "Llama-2-70b-chat-hf",
 ]
 """The 'multi_label' column of the dataset: the model that generated the
 text, or "human" if the text is human-written."""
@@ -57,7 +78,7 @@ def load_dataframe(csv_path: str | Path = DEFAULT_CSV_PATH) -> pd.DataFrame:
     if not csv_path.exists():
         raise FileNotFoundError(
             f"Could not find {csv_path}. Download multitude.csv from "
-            "https://zenodo.org/records/10013755 and place it there "
+            "https://zenodo.org/records/15519413 and place it there "
             "(see datasets/MULTITuDE/README.md)."
         )
     return pd.read_csv(csv_path)
