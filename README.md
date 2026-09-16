@@ -24,7 +24,7 @@ And we could also re-verify other findings:
 
 ## Datasets
 
-We will be making use of the MULTITuDE dataset containing the following fields per sample
+We will be making use of the MULTITuDE and MultiSocial dataset containing the following fields per sample
 
 * 'text' - a text sample
 * 'label' - 0 for human-written text, 1 for machine-generated text,
@@ -34,7 +34,11 @@ We will be making use of the MULTITuDE dataset containing the following fields p
 * 'length' - word count of the given text,
 * 'source' - a string identifying the source dataset / news medium of the given text.
 
-For more detail check out the datasets [readme](./datasets/MULTITuDE/README.md).
+For more detail check out the `./datasets` folder.
+
+## Fast Detect GPT
+
+Some people made an implementation of this idea (but with conditional curvature, unlike Mireshghallah et al.) called `fast-detect-gpt`. Their repo has been merged into ours under `./fastdetect`. We'll be taking this as a starting point.
 
 ## Other
 
