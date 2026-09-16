@@ -1,6 +1,6 @@
 # MULTITuDE 
 
-In this folder we'll put artifacts related to the MULTITuDE dataset. Paste your downloaded files here in `./multitude.csv`.
+In this folder we'll put artifacts related to the MULTITuDE dataset. Paste your downloaded files here in `./multitude.csv`. Note that there are multiple version of the dataset: V1, V2 and V3. We'll be using the newest and largest, V3.
 
 ## Description of MULTITude
 
