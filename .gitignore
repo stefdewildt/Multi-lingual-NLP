@@ -1,6 +1,6 @@
 # Datasets
-multitude.csv
-multisocial.csv
+multitude*.csv
+multisocial*.csv
 
 # Python
 __pycache__/

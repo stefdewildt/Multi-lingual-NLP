@@ -1,32 +1,20 @@
 # Detector (using Curvature)
 
-This folder will hold code and files related to the detector model, which takes a piece of text and answers whether the text is human written or not. A simplified example, where details like tokenization are left out:
+This folder holds code and files related to the detector model, which takes a piece of text and answers whether the text is human written or not. We have two techniques on how to do this, a perturbation based one and a faster one:
 
 ```python
 
-def detect(
-    str: str,
-    dm: DetectorModel,
-    pm: PerturbationModel,
-    n_perturbations: int,
-    curvature_threshold: float
-) -> bool:
-    perturbed_texts: list[str] = pm.perturb(text)
-    original_log_probability: float = dm.log_probability(text)
-    perturbed_log_probabilities: list[float] = [dm.log_probability(t) for t in perturbed_texts]
-    curvature = original_log_probability - sum(perturbed_log_probabilities) / n_perturbations
-    return curavture > curvature_threshold:
+pd = PerturbationDetector(
+    scoring_model=scoring_model, scoring_tokenizer=scoring_tokenizer,
+    mask_model=mask_model, mask_tokenizer=mask_tokenizer, device=device,
+    n_perturbations=5, metric="average", normalize_by="std", pct_masked=0.15,
+)
 
-
-class DetectorModel:
-    def log_probability(self, text: str) -> float:
-        """
-        Outputs the log joint probability for the whole text, where
-        log p(text) = log p(t1, t2 ... tN) = sum_i log p(ti | ti-1, ... t0)
-        So e.g. the softmax probabilites that are outputted for every token 
-        by an LLM.
-        """
-        pass
+fd = FastDetector(
+    reference_model=scoring_model, reference_tokenizer=scoring_tokenizer,
+    scoring_model=scoring_model, scoring_tokenizer=scoring_tokenizer,
+    device=device, mode="analytic", n_samples=None, sample_top_p=None, sample_top_k=None,
+)
 
 ```
 
@@ -49,35 +37,5 @@ In practise this means that we have two options to eliminate this bias.
 1. The first option is to make sure in some way that the number of tokens stays the same when when perturbing. But this is hard to do, since you'd probably need the perturbation model and the detector model should have the exact same vocabulary/tokenizer. If they don't, then the perturbation model might keep the number of tokens the same but the tokenizer of the detector model might get totally different numbers of tokens. Also we have to pass around raw Tensors or lists of tokens fo different types which is hard compared to just strings. 
 2. The second option is to normalize the (log) joint probabilites in some way, by for instance dividing the log probability by the sequence lenght. I think this is the easiest and most suitable way. 
 
-If we'd go with solution 2, we would get something like 
-
-```python 
-
-def detect(
-    str: str,
-    dm: DetectorModel,
-    pm: PerturbationModel,
-    n_perturbations: int, 
-    curvature_threshold: float
-) -> bool:
-    perturbed_texts: list[str] = pm.perturb(text)
-    original_average_log_probability: float = dm.average_log_probability_per_token(text)
-    perturbed_normalized_log_probabilities: list[float] = [dm.average_log_probability_per_token(t) for t in perturbed_texts]
-    curvature = original_average_log_probability - sum(perturbed_average_log_probabilities) / n_perturbations
-    return curavture > curvature_threshold:
-
-
-class DetectorModel:
-    def average_log_probability_per_token(self, text: str) -> float:
-        """
-        Outputs the average log joint probability for the whole text, where
-        mean(log p(ti | ti-1, ... t0)) = sum_i log p(ti | ti-1, ... t0) / N
-        So e.g. the softmax probabilites that are outputted for every token 
-        by an LLM.
-        """
-        pass
-
-```
-
-
+Solution 2 is what `PerturbationDetector`'s `metric` field above does: `"sum"` is the naive version, `"average"` divides by token count, fixing this bias.
 

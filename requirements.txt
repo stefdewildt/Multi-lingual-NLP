@@ -1,2 +1,9 @@
 pandas==3.0.5
 torch==2.14.0
+transformers
+numpy
+scipy
+scikit-learn
+sentencepiece
+protobuf
+accelerate
