@@ -2,7 +2,7 @@
 
 This repo holds code and files related to the MiniProject for our university course "Multilingual Natural Language Processing", for Msc AI.  
 
-Our main goals of the project is to try to detect AI-generated texts, using the curvative method described in [Mireshghallah et al.](literature/2305.09859v4.pdf). But we differ in the fact that we will not be testing whether the size or architecture of the model matter (like Mireshghallah et al.), but we will test whether language matters.
+Our main goals of the project is to try to detect AI-generated texts, using something similar to the curvative method described in [Mireshghallah et al.](literature/2305.09859v4.pdf). But we differ in the fact that we will not be testing whether the size or architecture of the model matter (like Mireshghallah et al.), but we will test whether language matters. [Bao et al.](literature/2310.05130v3.pdf) introduce a faster alternative to Mireshghallah et al., using conditional curvature. This is the technique we'll be using.
 
 ## Research Questions
 
