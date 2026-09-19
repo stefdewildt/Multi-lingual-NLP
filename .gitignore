@@ -9,6 +9,12 @@ __pycache__/
 .eggs/
 .ipynb_checkpoints/
 
+# HF Cache
+cache/
+
+# Results
+fastdetect/multitude_experiments/
+
 # Virtual environments
 .venv/
 venv/
