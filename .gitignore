@@ -2,6 +2,11 @@
 multitude*.csv
 multisocial*.csv
 
+# deze kunnen later eventueel weg
+detector/baseline/error_analysis/
+detector/baseline/results/
+detector/baseline/models/
+
 # Python
 __pycache__/
 *.py[cod]
