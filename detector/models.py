@@ -72,6 +72,7 @@ def load_model(
 ) -> PreTrainedModel:
     model_cls = AutoModelForCausalLM if kind == "causal" else AutoModelForSeq2SeqLM
     model = model_cls.from_pretrained(model_name, cache_dir=cache_dir)
+    model.eval()  # disables dropout, torch.no_grad() alone does not do this.
     return model.to(device)  # type: ignore[arg-type]
 
 
