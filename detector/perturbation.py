@@ -33,7 +33,9 @@ which uses the average token log-likelihood.
 "sum" uses sum_t log p(token), i.e. what all the articles use.
 "average" uses avg_t log p(token), i.e., divides that sum by 
 the token count, fixing the sequence-length bias described 
-in this folder's README."""
+in this folder's README. Actually I just noticed that even
+though the FastDetect paper doesn't specify this, they actually
+do use the token average in their code."""
 
 CurvatureNormalization = Literal["std", "none"]
 """Whether to divide the curvature by the standard deviation of the
@@ -116,16 +118,21 @@ def _text_metric(
     return lls.mean().item() if metric == "average" else lls.sum().item()
 
 
-MASK = "<<<mask>>>"
+MASK_ID = -1  # placeholder id, never a real vocab id (those are all >= 0)
 EXTRA_ID_PATTERN = re.compile(r"<extra_id_\d+>")
 
 
-def _tokenize_and_mask(text: str, span_length: int, pct_masked: float, ceil_pct: bool) -> str:
+def _tokenize_and_mask(
+    text: str, span_length: int, pct_masked: float, ceil_pct: bool, mask_tokenizer: PreTrainedTokenizerBase
+) -> str:
     """Replaces randomly chosen, non-overlapping spans of text with
     sentinel tokens <extra_id_N>.
 
     These sentinel tokens replace roughly pct_masked of the text,
-    in spans of span_length tokens each
+    in spans of span_length tokens each. Spans are chosen over
+    mask_tokenizer's own tokenization of text, not over whitespace-split
+    words, so this works the same way for scripts (e.g. Chinese) that
+    don't separate words with spaces.
 
     ceil_pct rounds the number of masked spans up instead of down, e.g. to
     guarantee at least one span on a short text.
@@ -134,33 +141,35 @@ def _tokenize_and_mask(text: str, span_length: int, pct_masked: float, ceil_pct:
     """
     buffer_size = 1  # tokens kept between two masked spans so they don't touch/merge
 
-    tokens = text.split(" ")
+    token_ids = mask_tokenizer(text, add_special_tokens=False).input_ids
+    if len(token_ids) <= span_length:
+        return text  # too short to mask
 
     # number of span_length-token spans needed to mask pct_masked of the text
-    n_spans = pct_masked * len(tokens) / (span_length + buffer_size * 2)
+    n_spans = pct_masked * len(token_ids) / (span_length + buffer_size * 2)
     n_spans = int(np.ceil(n_spans)) if ceil_pct else int(n_spans)
 
     # repeatedly pick a random span and mask it, skipping ones that would touch an existing mask
     n_masks = 0
     while n_masks < n_spans:
-        start = np.random.randint(0, len(tokens) - span_length)
+        start = np.random.randint(0, len(token_ids) - span_length)
         end = start + span_length
         search_start = max(0, start - buffer_size)
-        search_end = min(len(tokens), end + buffer_size)
-        if MASK not in tokens[search_start:search_end]:
-            tokens[start:end] = [MASK]
+        search_end = min(len(token_ids), end + buffer_size)
+        if MASK_ID not in token_ids[search_start:search_end]:
+            token_ids[start:end] = [MASK_ID]
             n_masks += 1
 
     num_filled = 0
-    for idx, token in enumerate(tokens):
-        if token == MASK:
-            tokens[idx] = f"<extra_id_{num_filled}>"
+    for idx, token_id in enumerate(token_ids):
+        if token_id == MASK_ID:
+            token_ids[idx] = mask_tokenizer.convert_tokens_to_ids(f"<extra_id_{num_filled}>")
             num_filled += 1
-    return " ".join(tokens)
+    return cast(str, mask_tokenizer.decode(token_ids, skip_special_tokens=False))
 
 
 def _count_masks(texts: list[str]) -> list[int]:
-    return [len([token for token in text.split() if token.startswith("<extra_id_")]) for text in texts]
+    return [len(EXTRA_ID_PATTERN.findall(text)) for text in texts]
 
 
 def _replace_masks(
@@ -193,17 +202,23 @@ def _extract_fills(texts: list[str]) -> list[list[str]]:
 
 
 def _apply_extracted_fills(masked_texts: list[str], extracted_fills: list[list[str]]) -> list[str]:
-    token_lists = [text.split(" ") for text in masked_texts]
     n_expected = _count_masks(masked_texts)
 
-    for tokens, fills, n in zip(token_lists, extracted_fills, n_expected):
+    results = []
+    for masked_text, fills, n in zip(masked_texts, extracted_fills, n_expected):
         if len(fills) < n:
-            tokens.clear()
-        else:
-            for fill_idx in range(n):
-                tokens[tokens.index(f"<extra_id_{fill_idx}>")] = fills[fill_idx]
+            results.append("")
+            continue
+        # chunks are the pieces of masked_text around each <extra_id_N>, in
+        # order. interleaving them with the fills splices the generated
+        # content back in without assuming words are space-separated.
+        chunks = EXTRA_ID_PATTERN.split(masked_text)
+        pieces = [chunks[0]]
+        for fill, chunk in zip(fills, chunks[1:]):
+            pieces += [fill, chunk]
+        results.append("".join(pieces))
 
-    return [" ".join(tokens) for tokens in token_lists]
+    return results
 
 def _perturb(
     text: str,
@@ -228,12 +243,12 @@ def _perturb(
         extracted_fills = _extract_fills(raw_fills)
         return _apply_extracted_fills(masked_texts, extracted_fills)
 
-    masked_texts = [_tokenize_and_mask(text, span_length, pct_masked, ceil_pct=True) for _ in range(n)]
+    masked_texts = [_tokenize_and_mask(text, span_length, pct_masked, True, mask_tokenizer) for _ in range(n)]
     perturbed_texts = fill(masked_texts)
 
     while "" in perturbed_texts:
         empty = [idx for idx, t in enumerate(perturbed_texts) if t == ""]
-        retried = fill([_tokenize_and_mask(text, span_length, pct_masked, ceil_pct=True) for _ in empty])
+        retried = fill([_tokenize_and_mask(text, span_length, pct_masked, True, mask_tokenizer) for _ in empty])
         for idx, t in zip(empty, retried):
             perturbed_texts[idx] = t
 
