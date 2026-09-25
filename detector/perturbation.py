@@ -92,7 +92,7 @@ class PerturbationDetector:
 
         curvature = original - statistics.mean(perturbed)
         if self.normalize_by == "std" and len(perturbed) > 1:
-            curvature /= statistics.stdev(perturbed) + 1e-6
+            curvature /= statistics.pstdev(perturbed) + 1e-6
         return curvature
 
     def predict(self, text: str, threshold: float) -> bool:
@@ -106,11 +106,15 @@ def _text_metric(
     device: Device,
     metric: Metric,
 ) -> float:
-    """The score of generatedness for a single text.
+    """The metric in the generatedness score d so that 
 
-    metric = 1 / |text| * sum_token_in_text log p(token)
+    d = (metric - mean(metrics_perturbed)) / std(metrics_perturbed)
+    metric = normalizer * sum_token_in_text log p(token)
 
-    Drops the normalizer if metric=="sum".
+    where 
+
+    normalizer = 1 / |text| if metric=="average"
+    normalizer = 1          if metric=="sum"
     """
     logits, labels = forward_logits(text, model, tokenizer, device)
     lprobs = logits.log_softmax(dim=-1)
@@ -120,6 +124,40 @@ def _text_metric(
 
 MASK_ID = -1  # placeholder id, never a real vocab id (those are all >= 0)
 EXTRA_ID_PATTERN = re.compile(r"<extra_id_\d+>")
+
+def _perturb(
+    text: str,
+    n: int,
+    mask_model: PreTrainedModel,
+    mask_tokenizer: PreTrainedTokenizerBase,
+    device: Device,
+    span_length: int,
+    pct_masked: float,
+    top_p: float,
+    top_k: int | None,
+) -> list[str]:
+    """Masks n independent copies of text (tokenize_and_mask), fills the
+    masks with mask_model (_replace_masks), then extracts and splices the
+    fills back in (_extract_fills, _apply_extracted_fills).
+
+    Retries any copy whose fill comes back empty, with a fresh mask, until
+    every copy has text.
+    """
+    def fill(masked_texts: list[str]) -> list[str]:
+        raw_fills = _replace_masks(masked_texts, mask_model, mask_tokenizer, device, top_p, top_k)
+        extracted_fills = _extract_fills(raw_fills)
+        return _apply_extracted_fills(masked_texts, extracted_fills)
+
+    masked_texts = [_tokenize_and_mask(text, span_length, pct_masked, True, mask_tokenizer) for _ in range(n)]
+    perturbed_texts = fill(masked_texts)
+
+    while "" in perturbed_texts:
+        empty = [idx for idx, t in enumerate(perturbed_texts) if t == ""]
+        retried = fill([_tokenize_and_mask(text, span_length, pct_masked, True, mask_tokenizer) for _ in empty])
+        for idx, t in zip(empty, retried):
+            perturbed_texts[idx] = t
+
+    return perturbed_texts
 
 
 def _tokenize_and_mask(
@@ -188,7 +226,7 @@ def _replace_masks(
         max_length=150,
         do_sample=True,
         top_p=top_p,
-        top_k=top_k if top_k is not None else 0,  # 0 disables top-k filtering in generate()
+        top_k=top_k if top_k is not None else 0,  # huggingface uses 0 for disabling top-k
         num_return_sequences=1,
         eos_token_id=stop_id,
     )
@@ -220,36 +258,4 @@ def _apply_extracted_fills(masked_texts: list[str], extracted_fills: list[list[s
 
     return results
 
-def _perturb(
-    text: str,
-    n: int,
-    mask_model: PreTrainedModel,
-    mask_tokenizer: PreTrainedTokenizerBase,
-    device: Device,
-    span_length: int,
-    pct_masked: float,
-    top_p: float,
-    top_k: int | None,
-) -> list[str]:
-    """Masks n independent copies of text (tokenize_and_mask), fills the
-    masks with mask_model (_replace_masks), then extracts and splices the
-    fills back in (_extract_fills, _apply_extracted_fills).
 
-    Retries any copy whose fill comes back empty, with a fresh mask, until
-    every copy has text.
-    """
-    def fill(masked_texts: list[str]) -> list[str]:
-        raw_fills = _replace_masks(masked_texts, mask_model, mask_tokenizer, device, top_p, top_k)
-        extracted_fills = _extract_fills(raw_fills)
-        return _apply_extracted_fills(masked_texts, extracted_fills)
-
-    masked_texts = [_tokenize_and_mask(text, span_length, pct_masked, True, mask_tokenizer) for _ in range(n)]
-    perturbed_texts = fill(masked_texts)
-
-    while "" in perturbed_texts:
-        empty = [idx for idx, t in enumerate(perturbed_texts) if t == ""]
-        retried = fill([_tokenize_and_mask(text, span_length, pct_masked, True, mask_tokenizer) for _ in empty])
-        for idx, t in zip(empty, retried):
-            perturbed_texts[idx] = t
-
-    return perturbed_texts

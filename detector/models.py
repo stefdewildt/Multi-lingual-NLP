@@ -89,7 +89,7 @@ def forward_logits(
 
     Returns (logits, labels), both shape (1, n_tokens - 1).
     """
-    tokenized = tokenizer(text, return_tensors="pt", return_token_type_ids=False).to(device)
+    tokenized = tokenizer(text, return_tensors="pt", return_token_type_ids=False, truncation=True).to(device)
     with torch.no_grad():
         logits = model(**tokenized).logits[:, :-1]
     labels = tokenized.input_ids[:, 1:]

@@ -25,7 +25,7 @@ Mode = Literal["analytic", "sampling"]
 """Which estimator computes the conditional probability curvature.
 
 "analytic" is the closed-form estimator, conditional_curvature_analytic:
-exact, computed directly from the full softmax distribution.
+exact, computed directly from the (optionally top_p/top_k-restricted) softmax distribution.
 
 "sampling" is the Monte Carlo estimator, conditional_curvature_sampling:
 approximate, estimated from resampled tokens."""
@@ -39,8 +39,8 @@ class FastDetector:
     scoring_tokenizer: PreTrainedTokenizerBase
     mode: Mode  # "analytic" (closed form) or "sampling" (Monte Carlo)
     n_samples: int | None  # required when mode is "sampling", unused (pass None) when "analytic"
-    sample_top_p: float | None  # nucleus cutoff for sampling mode, None samples from the full distribution
-    sample_top_k: int | None  # top-k cutoff for sampling mode, None disables it
+    top_p: float | None  # nucleus cutoff, either mode, None uses the full distribution
+    top_k: int | None  # top-k cutoff, either mode, None disables it
     device: Device
 
     def score(self, text: str) -> float:
@@ -76,11 +76,11 @@ class FastDetector:
                 labels, labels_ref
             ), "reference and scoring tokenizer disagree"
         if self.mode == "analytic":
-            return _conditional_curvature_analytic(logits_ref, logits_score, labels)
+            return _conditional_curvature_analytic(logits_ref, logits_score, labels, self.top_p, self.top_k)
         if self.mode == "sampling":
             assert self.n_samples is not None, "n_samples is required when mode is 'sampling'"
             return _conditional_curvature_sampling(
-                logits_ref, logits_score, labels, self.n_samples, self.sample_top_p, self.sample_top_k
+                logits_ref, logits_score, labels, self.n_samples, self.top_p, self.top_k
             )
         raise KeyError(f"unknown mode {self.mode!r}, expected 'analytic' or 'sampling'")
 
@@ -116,11 +116,10 @@ def _sample(logits_ref: Tensor, n_samples: int, top_p: float | None, top_k: int 
 
     x'_t ~ Categorical(softmax(logits_ref_t))
 
-    Restricting top_k/top_p changes the result, so it's no longer
-    comparable to conditional_curvature_analytic, which always uses
-    the full distribution. Use top_p=None, top_k=None to match it.
-    The FastDetect article itself doesn't use top_k or top_p, but
-    perhaps it helps?
+    Restricting top_k/top_p changes the result, but conditional_curvature_analytic
+    applies the same restriction, so the two stay comparable given matching
+    top_p/top_k. The FastDetect article itself doesn't use top_k or top_p,
+    but perhaps it helps?
 
     logits_ref: (1, T, V). Returns (1, T, n_samples).
     """
@@ -147,7 +146,7 @@ def _match_vocab(logits_ref: Tensor, logits_score: Tensor) -> tuple[Tensor, Tens
     if logits_ref.size(-1) != logits_score.size(-1):
         warnings.warn(
             f"reference and scoring model vocab sizes differ ({logits_ref.size(-1)} vs "
-            f"{logits_score.size(-1)}); truncating to {vocab_size} assumes their vocabularies "
+            f"{logits_score.size(-1)}), truncating to {vocab_size} assumes their vocabularies "
             "agree on token ids up to that point, which is only true if one is an extended "
             "version of the other."
         )
@@ -155,10 +154,10 @@ def _match_vocab(logits_ref: Tensor, logits_score: Tensor) -> tuple[Tensor, Tens
 
 
 def _conditional_curvature_analytic(
-    logits_ref: Tensor, logits_score: Tensor, labels: Tensor
+    logits_ref: Tensor, logits_score: Tensor, labels: Tensor, top_p: float | None, top_k: int | None
 ) -> float:
     """Since we have access to the reference model p_ref, we
-    don't have to use sampling methods to calculate the 
+    don't have to use sampling methods to calculate the
     expectations and variances. We can find them analytically.
 
     Bao et al. 2024 (literature/2310.05130v3.pdf), eq. 3 and eq. 4.
@@ -166,6 +165,7 @@ def _conditional_curvature_analytic(
     logits_ref, logits_score: (1, T, V), labels: (1, T).
     """
     logits_ref, logits_score = _match_vocab(logits_ref, logits_score)
+    logits_ref = _filter_logits(logits_ref, top_k, top_p)
     lprobs_score = logits_score.log_softmax(dim=-1)
     probs_ref = logits_ref.softmax(dim=-1)
     log_likelihood = lprobs_score.gather(dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)

@@ -13,7 +13,7 @@ pd = PerturbationDetector(
 fd = FastDetector(
     reference_model=scoring_model, reference_tokenizer=scoring_tokenizer,
     scoring_model=scoring_model, scoring_tokenizer=scoring_tokenizer,
-    device=device, mode="analytic", n_samples=None, sample_top_p=None, sample_top_k=None,
+    device=device, mode="analytic", n_samples=None, top_p=None, top_k=None,
 )
 
 ```

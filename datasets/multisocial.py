@@ -71,6 +71,9 @@ def load_dataframe(csv_path: str | Path = DEFAULT_CSV_PATH) -> pd.DataFrame:
             "https://zenodo.org/records/13846152 and place it there "
             "(see datasets/MultiSocial/README.md)."
         )
+    with csv_path.open("rb") as file:
+        if file.read(2) == b"\x1f\x8b":
+            raise ValueError(f"{csv_path} is a gzip file, unzip it first, e.g. gunzip {csv_path}")
     return pd.read_csv(csv_path)
 
 

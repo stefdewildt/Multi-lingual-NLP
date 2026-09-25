@@ -1,9 +1,11 @@
 pandas==3.0.5
 torch==2.14.0
-transformers
+transformers==5.17.0
 numpy
 scipy
 scikit-learn
 sentencepiece
 protobuf
 accelerate
+tqdm
+matplotlib
