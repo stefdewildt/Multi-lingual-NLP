@@ -29,28 +29,28 @@ python score.py --detector baseline --dataset multitude --baseline-weights detec
 
 ## Ozan
 
-Qwen/Qwen2.5-0.5B, fastdetect (same model as both reference and scoring) and detectgpt. 
+Qwen/Qwen3-0.6B, fastdetect (same model as both reference and scoring) and detectgpt. 
 
 Write job files for all these commands and run on Snellius
 
 ```bash
-python score.py --detector fastdetect --dataset multisocial --scoring Qwen/Qwen2.5-0.5B
-python score.py --detector fastdetect --dataset multitude --scoring Qwen/Qwen2.5-0.5B
-python score.py --detector detectgpt --dataset multisocial --scoring Qwen/Qwen2.5-0.5B --detectgpt-mask google/mt5-small
-python score.py --detector detectgpt --dataset multitude --scoring Qwen/Qwen2.5-0.5B --detectgpt-mask google/mt5-small
+python score.py --detector fastdetect --dataset multisocial --scoring Qwen/Qwen3-0.6B
+python score.py --detector fastdetect --dataset multitude --scoring Qwen/Qwen3-0.6B
+python score.py --detector detectgpt --dataset multisocial --scoring Qwen/Qwen3-0.6B --detectgpt-mask google/mt5-small
+python score.py --detector detectgpt --dataset multitude --scoring Qwen/Qwen3-0.6B --detectgpt-mask google/mt5-small
 ```
 
 ## Stef
 
-Same as Ozan, one size up: Qwen/Qwen2.5-1.5B.
+Same as Ozan, one size up: Qwen/Qwen3-1.7B.
 
 Write job files for all these commands and run on Snellius
 
 ```bash
-python score.py --detector fastdetect --dataset multisocial --scoring Qwen/Qwen2.5-1.5B
-python score.py --detector fastdetect --dataset multitude --scoring Qwen/Qwen2.5-1.5B
-python score.py --detector detectgpt --dataset multisocial --scoring Qwen/Qwen2.5-1.5B --detectgpt-mask google/mt5-small
-python score.py --detector detectgpt --dataset multitude --scoring Qwen/Qwen2.5-1.5B --detectgpt-mask google/mt5-small
+python score.py --detector fastdetect --dataset multisocial --scoring Qwen/Qwen3-1.7B
+python score.py --detector fastdetect --dataset multitude --scoring Qwen/Qwen3-1.7B
+python score.py --detector detectgpt --dataset multisocial --scoring Qwen/Qwen3-1.7B --detectgpt-mask google/mt5-small
+python score.py --detector detectgpt --dataset multitude --scoring Qwen/Qwen3-1.7B --detectgpt-mask google/mt5-small
 ```
 
 ## Julian
@@ -109,8 +109,8 @@ pip install -r requirements.txt
 export HF_HOME=$HOME/hf_cache
 python -c "
 from detector.models import load_model, load_tokenizer
-load_model('Qwen/Qwen2.5-0.5B', 'causal', 'cpu')
-load_tokenizer('Qwen/Qwen2.5-0.5B')
+load_model('Qwen/Qwen3-0.6B', 'causal', 'cpu')
+load_tokenizer('Qwen/Qwen3-0.6B')
 load_model('google/mt5-small', 'seq2seq', 'cpu')
 load_tokenizer('google/mt5-small')
 "
@@ -137,7 +137,7 @@ export HF_HUB_OFFLINE=1
 
 # make and queue separate job files for different runs
 # run once with --dataset-limit 20 first as if you wanna test first
-srun python score.py --detector fastdetect --dataset multisocial --scoring Qwen/Qwen2.5-0.5B
+srun python score.py --detector fastdetect --dataset multisocial --scoring Qwen/Qwen3-0.6B
 ```
 
 ```bash

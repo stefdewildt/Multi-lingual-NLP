@@ -42,8 +42,8 @@ ModelName = Literal[
     "google/mt5-large",
     "google/mt5-xl",
     # small, recent, multilingual baselines
-    "Qwen/Qwen2.5-0.5B",
-    "Qwen/Qwen2.5-1.5B",
+    "Qwen/Qwen3-0.6B",
+    "Qwen/Qwen3-1.7B",
     "facebook/xglm-564M",
     "bigscience/bloom-560m",
     # small, recent, monolingual/paucilingual baselines (one or few languages)
