@@ -87,6 +87,7 @@ class ScoreArgs:
     dataset: Dataset  # which dataset to score
     output: Path  # folder under which the run's config-named subfolder is written
     tag: str | None  # free-text label appended to the run's output folder name
+    run_folder: str | None  # exact folder name under --output to use instead of the automatic generated name. 
 
     dataset_split: DatasetSplit  # "all", "train", or "test"
     dataset_languages: list[str] | None  # restrict to these ISO codes, e.g. ["nl", "en"]
@@ -119,6 +120,7 @@ class ScoreArgs:
     seed: int  # random seed for sampling/subsampling and detector randomness
     save_every: int  # rows between disk flushes
     overwrite: bool  # discard any existing output for this config before starting
+    resume: bool  # required (alongside --retry-errors/--overwrite) to continue into a folder that already has data
     retry_errors: bool  # on resume, also re-attempt rows that errored last time
     dry_run: bool  # print what would run, load nothing, score nothing
 
@@ -192,6 +194,13 @@ def run(args: ScoreArgs) -> None:
     if args.overwrite:
         output_scores_csv_path.unlink(missing_ok=True)
         output_meta_json_path.unlink(missing_ok=True)
+
+    if output_scores_csv_path.exists() and not (args.resume or args.retry_errors):
+        sys.exit(
+            f"{output_scores_csv_path} already has data from a previous run. "
+            "Pass --resume to continue it, --retry-errors to also re-attempt "
+            "errored rows, or --overwrite to discard it and start fresh."
+        )
 
     # for resuming unfinished runs, keyed by (dataset, row_id): a folder can
     # hold rows from more than one --dataset
@@ -349,6 +358,11 @@ def parse_args(argv: list[str] | None = None) -> ScoreArgs:
         "--tag",
         default=None,
         help="free-text label appended to the run's output folder name, e.g. your name",
+    )
+    parser.add_argument(
+        "--run-folder",
+        default=None,
+        help="exact folder name under --output to write into (overrides the automatic name and tag), use this to resume an old folder",
     )
 
     parser.add_argument(
@@ -508,6 +522,11 @@ def parse_args(argv: list[str] | None = None) -> ScoreArgs:
         help="discard any existing output for this config",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="required (alongside --retry-errors/--overwrite) to continue into a folder that already has data",
+    )
+    parser.add_argument(
         "--retry-errors",
         action="store_true",
         help="on resume, also re-attempt rows that errored last time (default: leave them as-is)",
@@ -652,7 +671,10 @@ def _build_run_folder_name(args: ScoreArgs) -> str:
     The detector config has the property that all thescores produced by
     some config cannot be different from the scores produced by another
     run with the same config"""
+    if args.run_folder:
+        return args.run_folder
     slug = str(_detector_config(args))
+    slug += f"_{_sanitize(args.dataset)}"
     if args.tag:
         slug += f"_{_sanitize(args.tag)}"
     return slug
