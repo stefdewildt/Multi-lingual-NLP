@@ -30,6 +30,10 @@ so adding the missing entries to scores.csv, and adds a new entry to
 meta.json. See --overwrite and --retry-errors (python score.py --help) 
 for details.
 
+Note: this script is already being used, and results have already 
+been gathered. If you change this, make sure the new version produces
+result compatable with the older version.
+
 """
 
 from __future__ import annotations
