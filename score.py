@@ -41,7 +41,6 @@ from __future__ import annotations
 import argparse
 import csv
 import getpass
-import hashlib
 import json
 import socket
 import subprocess
@@ -67,7 +66,7 @@ from detector.perturbation import (
     Metric,
     PerturbationDetector,
 )
-from utils.checksum import file_checksum
+from utils.checksum import file_checksum, files_checksum
 from utils.length import LengthUnit, LENGTH_TOKENIZER_MODEL, cached_token_lengths, text_length
 from utils.strings import sanitize
 
@@ -939,13 +938,6 @@ def _package_versions() -> dict[str, str]:
     return versions
 
 
-# TODO move this to the checksum module as well. 
-# Perhaps under files_checksum (so plural) with 
-# both filepaths as input. Make sure there is 
-# backward compatability. I find it a bit weird 
-# the single file thing does it different (not
-# read all bytes but read X bytes) but I guess
-# we need to keep it for backward compatability. 
 def _baseline_weights_checksum(save_dir: Path) -> str | None:
     """sha256 of the trained weight files in a baseline save_dir, so two
     people pointing --baseline-weights at directories with the same name
@@ -953,10 +945,7 @@ def _baseline_weights_checksum(save_dir: Path) -> str | None:
     files = [save_dir / "vectorizer.pkl", save_dir / "model.pkl"]
     if not all(file.exists() for file in files):
         return None
-    digest = hashlib.sha256()
-    for file in files:
-        digest.update(file.read_bytes())
-    return digest.hexdigest()
+    return files_checksum(files)
 
 
 if __name__ == "__main__":
