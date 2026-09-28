@@ -43,6 +43,21 @@ class FastDetector:
     top_k: int | None  # top-k cutoff, either mode, None disables it
     device: Device
 
+    def __post_init__(self) -> None:
+        if self.reference_model is self.scoring_model:
+            return
+        probe = "The quick brown fox jumps over the lazy dog."
+        score_ids = self.scoring_tokenizer(probe, return_tensors="pt", return_token_type_ids=False).input_ids
+        ref_ids = self.reference_tokenizer(probe, return_tensors="pt", return_token_type_ids=False).input_ids
+        if not torch.equal(score_ids, ref_ids):
+            raise ValueError(
+                f"scoring tokenizer {self.scoring_tokenizer.name_or_path!r} and reference "
+                f"tokenizer {self.reference_tokenizer.name_or_path!r} disagree on a probe "
+                "sentence's tokenization, so every row would fail with \"reference and "
+                "scoring tokenizer disagree\". fastdetect needs a reference and scoring "
+                "model that tokenize text the same way."
+            )
+
     def score(self, text: str) -> float:
         """A score indicating the amount of generatedness of the text.
 
