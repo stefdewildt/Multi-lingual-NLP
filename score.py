@@ -67,6 +67,9 @@ from detector.perturbation import (
     Metric,
     PerturbationDetector,
 )
+from utils.checksum import file_checksum
+from utils.length import LengthUnit, LENGTH_TOKENIZER_MODEL, cached_token_lengths, text_length
+from utils.strings import sanitize
 
 REPO_ROOT = Path(__file__).resolve().parent
 DATASET_MODULES = {"multitude": multitude, "multisocial": multisocial}
@@ -97,6 +100,9 @@ class ScoreArgs:
     dataset_limit: int | None  # (testing) only score N matching rows, shuffled first so this isn't single-class/single-language
     dataset_limit_language: int | None  # (testing) cap each language at N rows, keep all rows for languages with fewer
     dataset_sample: int | None  # (testing) randomly subsample N matching rows
+    dataset_min_length: int | None  # only score rows at least this long
+    dataset_length_unit: LengthUnit  # unit dataset_min_length is measured in
+    dataset_length_tokenizer: str  # huggingface tokenizer id used when dataset_length_unit is "tokens"
 
     baseline_weights: Path | None  # baseline: save_dir of a trained baseline
 
@@ -137,6 +143,9 @@ class RunEntry(TypedDict):
     dataset_sample: int | None
     dataset_limit: int | None
     dataset_limit_language: int | None
+    dataset_min_length: int | None
+    dataset_length_unit: str
+    dataset_length_tokenizer: str | None
     complete: bool
     device: str
     hardware: str
@@ -292,11 +301,16 @@ def run(args: ScoreArgs) -> None:
         "dataset_models": args.dataset_models,
         "dataset_csv_path": str(dataset_csv_path),
         "dataset_csv_sha256": (
-            _file_checksum(dataset_csv_path) if dataset_csv_path.exists() else None
+            file_checksum(dataset_csv_path) if dataset_csv_path.exists() else None
         ),
         "dataset_sample": args.dataset_sample,
         "dataset_limit": args.dataset_limit,
         "dataset_limit_language": args.dataset_limit_language,
+        "dataset_min_length": args.dataset_min_length,
+        "dataset_length_unit": args.dataset_length_unit,
+        "dataset_length_tokenizer": (
+            args.dataset_length_tokenizer if args.dataset_length_unit == "tokens" else None
+        ),
         # False when --dataset-sample/--dataset-limit/--dataset-limit-language were used:
         # this run doesn't cover the full filtered dataset, so eval.py warns before
         # including it.
@@ -304,6 +318,7 @@ def run(args: ScoreArgs) -> None:
             args.dataset_sample is None
             and args.dataset_limit is None
             and args.dataset_limit_language is None
+            and args.dataset_min_length is None
         ),
         "device": device,
         "hardware": _hardware_info(device),
@@ -410,6 +425,23 @@ def parse_args(argv: list[str] | None = None) -> ScoreArgs:
         type=int,
         default=None,
         help="(testing) randomly subsample N matching rows before scoring, marks the run's meta.json incomplete",
+    )
+    parser.add_argument(
+        "--dataset-min-length",
+        type=int,
+        default=None,
+        help="only score rows at least this long (see --dataset-length-unit).",
+    )
+    parser.add_argument(
+        "--dataset-length-unit",
+        default="tokens",
+        choices=["words", "chars", "tokens"],
+        help="unit --dataset-min-length is measured in (see utils/length.py)",
+    )
+    parser.add_argument(
+        "--dataset-length-tokenizer",
+        default=LENGTH_TOKENIZER_MODEL,
+        help="huggingface tokenizer id used when --dataset-length-unit tokens",
     )
 
     parser.add_argument(
@@ -651,6 +683,17 @@ def _load_data(args: ScoreArgs, csv_source_path: Path) -> pd.DataFrame:
         filter_kwargs["exclude_noise"] = args.multisocial_exclude_noise
     frame = module.filter_dataframe(frame, **filter_kwargs)
 
+    if args.dataset_min_length is not None:
+        if args.dataset_length_unit == "tokens":
+            lengths = cached_token_lengths(
+                args.dataset, frame.index.to_series(), frame["text"],
+                file_checksum(csv_source_path) if csv_source_path.exists() else None,
+                args.dataset_length_tokenizer,
+            )
+        else:
+            lengths = frame["text"].map(lambda t: text_length(str(t), args.dataset_length_unit, None))
+        frame = frame[lengths >= args.dataset_min_length]
+
     if args.dataset_limit_language is not None:
         frame = pd.concat(
             group if len(group) <= args.dataset_limit_language
@@ -674,9 +717,9 @@ def _build_run_folder_name(args: ScoreArgs) -> str:
     if args.run_folder:
         return args.run_folder
     slug = str(_detector_config(args))
-    slug += f"_{_sanitize(args.dataset)}"
+    slug += f"_{sanitize(args.dataset)}"
     if args.tag:
-        slug += f"_{_sanitize(args.tag)}"
+        slug += f"_{sanitize(args.tag)}"
     return slug
 
 
@@ -689,10 +732,6 @@ class BaselineScoreDetector:
     def score(self, text: str) -> float:
         features = self.detector.vectorizer.transform([text])
         return float(self.detector.model.predict_proba(features)[0, 1])
-
-
-def _sanitize(value: str) -> str:
-    return "".join(c if (c.isalnum() or c in "-._") else "-" for c in value)
 
 
 @dataclass(frozen=True)
@@ -744,8 +783,8 @@ class DetectorConfig:
             assert self.scoring is not None
             assert self.fastdetect_reference is not None
             assert self.fastdetect_mode is not None
-            parts.append(f"score-{_sanitize(self.scoring)}")
-            parts.append(f"ref-{_sanitize(self.fastdetect_reference)}")
+            parts.append(f"score-{sanitize(self.scoring)}")
+            parts.append(f"ref-{sanitize(self.fastdetect_reference)}")
             parts.append(self.fastdetect_mode)
             if self.fastdetect_mode == "sampling":
                 parts.append(f"n{self.fastdetect_n_samples}")
@@ -756,8 +795,8 @@ class DetectorConfig:
         if self.detector == "detectgpt":
             assert self.scoring is not None
             assert self.detectgpt_mask is not None
-            parts.append(f"score-{_sanitize(self.scoring)}")
-            parts.append(f"mask-{_sanitize(self.detectgpt_mask)}")
+            parts.append(f"score-{sanitize(self.scoring)}")
+            parts.append(f"mask-{sanitize(self.detectgpt_mask)}")
             parts.append(f"{self.detectgpt_metric}-{self.detectgpt_normalize_by}")
             parts.append(f"p{self.detectgpt_n_perturbations}")
             parts.append(f"span{self.detectgpt_span_length}")
@@ -767,7 +806,7 @@ class DetectorConfig:
                 parts.append(f"topk{self.top_k}")
         if self.detector == "baseline":
             assert self.baseline_weights_path is not None
-            parts.append(f"weights-{_sanitize(Path(self.baseline_weights_path).name)}")
+            parts.append(f"weights-{sanitize(Path(self.baseline_weights_path).name)}")
             if self.baseline_weights_hash:
                 parts.append(self.baseline_weights_hash[:8])
         parts.append(f"seed{self.seed}")
@@ -900,6 +939,13 @@ def _package_versions() -> dict[str, str]:
     return versions
 
 
+# TODO move this to the checksum module as well. 
+# Perhaps under files_checksum (so plural) with 
+# both filepaths as input. Make sure there is 
+# backward compatability. I find it a bit weird 
+# the single file thing does it different (not
+# read all bytes but read X bytes) but I guess
+# we need to keep it for backward compatability. 
 def _baseline_weights_checksum(save_dir: Path) -> str | None:
     """sha256 of the trained weight files in a baseline save_dir, so two
     people pointing --baseline-weights at directories with the same name
@@ -910,17 +956,6 @@ def _baseline_weights_checksum(save_dir: Path) -> str | None:
     digest = hashlib.sha256()
     for file in files:
         digest.update(file.read_bytes())
-    return digest.hexdigest()
-
-
-def _file_checksum(path: Path) -> str:
-    """sha256 of the raw dataset csv actually used for this run, so two
-    people's outputs can be checked for having scored the exact same file
-    (not just a file with the same name)."""
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1 << 20), b""):
-            digest.update(chunk)
     return digest.hexdigest()
 
 
