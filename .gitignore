@@ -27,6 +27,7 @@ fastdetect/multitude_experiments/
 .venv/
 venv/
 env/
+mnlp/
 
 # Distribution / packaging
 build/
@@ -53,3 +54,6 @@ wandb/
 runs/
 checkpoints/
 outputs/
+
+.cache/
+.claude/
