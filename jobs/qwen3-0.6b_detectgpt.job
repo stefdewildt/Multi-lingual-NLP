@@ -5,9 +5,9 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=18
 #SBATCH --mem=120G
-#SBATCH --time=08:00:00
+#SBATCH --time=48:00:00
 #SBATCH --array=0-1
-#SBATCH --output=qwen3-0.6b-detectgpt-%A_%a.log
+#SBATCH --output=logs/qwen3-0.6b-detectgpt-%A_%a.out
 
 set -eo pipefail
 module purge
@@ -23,4 +23,4 @@ datasets=(multisocial multitude)
 dataset="${datasets[$SLURM_ARRAY_TASK_ID]}"
 
 srun python -u score.py --detector detectgpt --dataset "$dataset" --scoring Qwen/Qwen3-0.6B --detectgpt-mask google/mt5-small \
-    --output outputs/qwen3-0.6b
+    --output outputs/qwen3-0.6b --resume

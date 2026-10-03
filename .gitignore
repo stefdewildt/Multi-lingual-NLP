@@ -17,6 +17,9 @@ __pycache__/
 # HF Cache
 cache/
 
+# Job outputs
+logs/
+
 # Results
 fastdetect/multitude_experiments/
 
