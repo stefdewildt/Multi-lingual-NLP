@@ -54,6 +54,8 @@ wandb/
 runs/
 checkpoints/
 outputs/
+analysis/.cache/
+analysis/output/
 
 .cache/
 .claude/
