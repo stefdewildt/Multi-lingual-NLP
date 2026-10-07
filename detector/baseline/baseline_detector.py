@@ -3,13 +3,11 @@
 The baseline represents each document as a sparse vector of word n-gram
 TF-IDF scores and uses logistic regression to predict a binary label:
 
-* ``0`` means human-written text.
-* ``1`` means machine-generated text.
+0 means human-written text.
+1 means machine-generated text.
 
-The :func:`train_detector` function connects the model to the project's
-MultiSocial and MULTITuDE dataset loaders. Evaluation is handled separately
-by :func:`evaluate_detector`, which can also save misclassified samples for
-error analysis.
+The `train_detector` function can be used to train the model with the project's
+MultiSocial and MULTITuDE dataset loaders. 
 """
 
 from __future__ import annotations
@@ -18,28 +16,23 @@ import json
 import pickle
 from pathlib import Path
 from typing import Any, Iterable
-
 import numpy as np
 import pandas as pd
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
 
 from datasets.multisocial import MultiSocialDataset
 from datasets.multitude import MultitudeDataset
 
-
+# easy to write/read dataset names
 DATASET_CLASSES = {
     "multisocial": MultiSocialDataset,
     "multitude": MultitudeDataset,
 }
+
+# These names let one detector learn from both datasets at once.
+COMBINED_DATASET_NAMES = {"both", "combined"}
 
 
 class BaselineDetector:
@@ -47,9 +40,7 @@ class BaselineDetector:
 
     The vectorizer learns the vocabulary and inverse-document frequencies from
     training text. The logistic-regression model then learns how useful those
-    features are for separating the two classes. Keeping these objects
-    together is important because prediction must use the same vocabulary that
-    was learned during training.
+    features are for separating the two classes.
     """
 
     def __init__(
@@ -68,6 +59,7 @@ class BaselineDetector:
             class_weight: Logistic-regression weighting strategy. ``"balanced"``
                 gives more influence to the minority class during training.
         """
+        # initialize the tf-idf vectorizer
         self.vectorizer = TfidfVectorizer(
             max_features=max_features,
             ngram_range=ngram_range,
@@ -75,11 +67,15 @@ class BaselineDetector:
             max_df=0.95,
             lowercase=True,
         )
+
+        # initialize the logistic regression classifier
         self.model = LogisticRegression(
             class_weight=class_weight,
             max_iter=1_000,
             random_state=42,
         )
+
+        # store the fact that the current detector has not yet been trained, so predictions are not allowed
         self.is_trained = False
 
     def fit(self, texts: Iterable[str], labels: Iterable[int]) -> "BaselineDetector":
@@ -94,19 +90,24 @@ class BaselineDetector:
             labels: Matching labels using 0 for human and 1 for machine text.
 
         Returns:
-            This detector, allowing ``BaselineDetector().fit(texts, labels)``.
+            This detector
         """
         text_list = list(texts)
         label_array = np.asarray(list(labels), dtype=int)
+
+        # each text needs exactly one matching label
         if len(text_list) != len(label_array):
             raise ValueError("texts and labels must have the same length")
+
+        # make sure we have at least one example of each class, otherwise the classifier will fail
         if len(np.unique(label_array)) < 2:
             raise ValueError("training data must contain both classes")
 
+        # learn the vocabulary (features) first, then train the classifier on those features
         features = self.vectorizer.fit_transform(text_list)
         self.model.fit(features, label_array)
         self.is_trained = True
-        
+
         return self
 
     def predict(self, text: str) -> tuple[int, float]:
@@ -118,59 +119,34 @@ class BaselineDetector:
             not a guarantee that the prediction is correct.
         """
         self._check_trained()
+
+        # get the TF-IDF features for the input text, then predict the label
         features = self.vectorizer.transform([text])
         label = int(self.model.predict(features)[0])
+
+        # find the probability of belonging to the selected label (this shows how confident the model is in its prediction)
         confidence = float(self.model.predict_proba(features)[0, label])
 
         return label, confidence
 
-    def predict_batch(self, texts: Iterable[str]) -> tuple[list[int], list[float]]:
-        """Classify multiple documents in one vectorization operation.
-
-        Returns:
-            Two lists: predicted labels and the corresponding predicted-class
-            probabilities, in the same order as ``texts``.
-        """
-        self._check_trained()
-        features = self.vectorizer.transform(list(texts))
-        probabilities = self.model.predict_proba(features)
-        labels = self.model.predict(features).astype(int)
-        confidences = probabilities[np.arange(len(labels)), labels]
-
-        return labels.tolist(), confidences.tolist()
-
-    def evaluate(self, texts: Iterable[str], labels: Iterable[int]) -> dict[str, float]:
-        """Evaluate the already-fitted detector on labeled documents.
-
-        This method only transforms the supplied documents with the existing
-        TF-IDF vocabulary. It never refits the vectorizer or classifier, so it
-        can be used for a held-out language or a different dataset.
-        """
-        self._check_trained()
-        text_list = list(texts)
-        label_array = np.asarray(list(labels), dtype=int)
-        if len(text_list) != len(label_array):
-            raise ValueError("texts and labels must have the same length")
-
-        features = self.vectorizer.transform(text_list)
-        predictions = self.model.predict(features)
-        probabilities = self.model.predict_proba(features)[:, 1]
-
-        return _metrics(label_array, predictions, probabilities)
-
     def save(self, save_dir: str | Path) -> None:
         """Save the trained components to a directory.
 
-        ``vectorizer.pkl`` stores the learned vocabulary and IDF values,
-        ``model.pkl`` stores the logistic-regression classifier, and
-        ``metadata.json`` stores human-readable configuration information.
+        vectorizer.pkl stores the learned vocabulary and IDF values,
+        model.pkl stores the logistic-regression classifier, and
+        metadata.json stores human-readable configuration information.
         """
+        # create the destination folder when it does not exist
         save_path = Path(save_dir)
         save_path.mkdir(parents=True, exist_ok=True)
+
+        # save the vocabulary and the trained classifier separately
         with (save_path / "vectorizer.pkl").open("wb") as file:
             pickle.dump(self.vectorizer, file)
         with (save_path / "model.pkl").open("wb") as file:
             pickle.dump(self.model, file)
+
+        # store the main settings so the saved files are easier to understand
         metadata = {
             "is_trained": self.is_trained,
             "max_features": self.vectorizer.max_features,
@@ -181,124 +157,42 @@ class BaselineDetector:
 
     @classmethod
     def load(cls, save_dir: str | Path) -> "BaselineDetector":
-        """Reconstruct a detector saved with `save`."""
+        """Load a detector that was previously saved."""
+        # read both trained parts from the folder created by the save function. 
         save_path = Path(save_dir)
+
         with (save_path / "vectorizer.pkl").open("rb") as file:
             vectorizer = pickle.load(file)
+
         with (save_path / "model.pkl").open("rb") as file:
             model = pickle.load(file)
+
+        # build a detector with matching settings
         detector = cls(
             max_features=vectorizer.max_features,
             ngram_range=vectorizer.ngram_range,
             class_weight=model.class_weight,
         )
+
+        # make sure the restored detector is ready for predictions
         detector.vectorizer = vectorizer
         detector.model = model
         detector.is_trained = True
+
         return detector
 
     def _check_trained(self) -> None:
+        """Raise a clear error when prediction is requested but training has not been done."""
         if not self.is_trained:
             raise RuntimeError("fit the detector before making predictions")
 
 
-def _metrics(labels: np.ndarray, predictions: np.ndarray, probabilities: np.ndarray) -> dict[str, float | int]:
-    """Calculate the metrics used to compare detector experiments.
-    """
-    result = {
-        "support": int(len(labels)),
-        "accuracy": float(accuracy_score(labels, predictions)),
-        "precision": float(precision_score(labels, predictions, zero_division=0)),
-        "recall": float(recall_score(labels, predictions, zero_division=0)),
-        "f1": float(f1_score(labels, predictions, zero_division=0)),
-    }
-    result["auc"] = (
-        float(roc_auc_score(labels, probabilities))
-        if len(np.unique(labels)) == 2
-        else float("nan")
-    )
-
-    return result
-
-
-def _group_metrics(
-    frame: pd.DataFrame,
-    predictions: np.ndarray,
-    probabilities: np.ndarray,
-    column: str,
-) -> dict[str, dict[str, float | int]]:
-    """Calculate metrics separately for every value in a metadata column."""
-    results = {}
-    for value, group in frame.groupby(column, dropna=False):
-        # Convert DataFrame index labels to row positions in the prediction arrays.
-        indices = frame.index.get_indexer(group.index)
-        results[str(value)] = _metrics(
-            group["label"].to_numpy(),
-            predictions[indices],
-            probabilities[indices],
-        )
-    return results
-
-
-def _model_group_metrics(
-    frame: pd.DataFrame,
-    predictions: np.ndarray,
-    probabilities: np.ndarray,
-) -> dict[str, dict[str, float | int]]:
-    """Calculate meaningful metrics for each generator-model group.
-
-    A generator-model group normally contains only one true class, so
-    precision and ROC-AUC are not informative. Recall, F1, accuracy, and
-    support are retained for model-level comparison. Human-written samples
-    are excluded because ``multi_label == "human"`` is not a generator model.
-    """
-    return {
-        model: {
-            metric: values[metric]
-            for metric in ("support", "accuracy", "recall", "f1")
-        }
-        for model, values in _group_metrics(
-            frame,
-            predictions,
-            probabilities,
-            "multi_label",
-        ).items()
-        if model.lower() != "human"
-    }
-
 
 def _frame(dataset: Any) -> Any:
-    """Extract the columns needed by the detector from a project dataset.
-
-    Both dataset classes expose their filtered pandas DataFrame as ``.df``.
-    Keep all columns here because error analysis needs metadata such as the
-    source, originating model, language, and text length.
+    """Extract the columns needed by the detector from a dataset.
     """
+    # remove incomplete rows so training and evaluation receive usable text
     return dataset.df.dropna(subset=["text", "label"]).copy()
-
-
-def _save_errors(
-    frame: pd.DataFrame,
-    predictions: Iterable[int],
-    confidences: Iterable[float],
-    output_path: str | Path,
-) -> int:
-    """Save incorrect predictions and their original dataset metadata.
-
-    The output contains every original column plus ``predicted_label``,
-    ``confidence``, and ``correct``. CSV is used so the file can be opened
-    directly in a spreadsheet or loaded again with pandas.
-    """
-    analysis_frame = frame.reset_index(drop=True).copy()
-    analysis_frame["predicted_label"] = list(predictions)
-    analysis_frame["confidence"] = list(confidences)
-    analysis_frame["correct"] = analysis_frame["label"] == analysis_frame["predicted_label"]
-    errors = analysis_frame.loc[~analysis_frame["correct"]].copy()
-
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    errors.to_csv(output_path, index=False)
-    return len(errors)
 
 
 def _sample_balanced(
@@ -309,21 +203,15 @@ def _sample_balanced(
     balance_models: bool,
 ) -> pd.DataFrame:
     """Sample an equal number of rows from each selected balancing stratum.
-
-    The selected columns define the strata. For example, enabling
-    ``balance_classes`` and ``balance_languages`` groups by
-    ``("label", "language")`` and therefore balances human/machine samples
-    separately within each language. If no balancing options are enabled, the
-    input is returned unchanged unless ``sample_size`` is set.
-
-    ``multi_label`` and ``label`` are not independent in these datasets:
-    ``multi_label == "human"`` always represents human text. Consequently,
-    enabling both model and class balancing can produce very small strata or
-    fail when a requested combination does not exist.
+    Note: we coded this possibility, but decided not to use it in the experiments.
+    As this model only serves as a baseline, spending time tuning hyperparameters and finding
+    which balancing strategy works best was not a priority.
     """
+    # a small sample would not leave enough room for both classes
     if sample_size is not None and sample_size < 2:
         raise ValueError("sample_size must be at least 2")
 
+    # collect the columns that should have equally sized groups
     balance_columns = []
     if balance_classes:
         balance_columns.append("label")
@@ -332,13 +220,17 @@ def _sample_balanced(
     if balance_models:
         balance_columns.append("multi_label")
 
+    # without balancing, either keep all rows or take a repeatable random sample
     if not balance_columns:
         if sample_size is None or sample_size >= len(frame):
             return frame.copy()
         return frame.sample(n=sample_size, random_state=42).reset_index(drop=True)
 
+    # find the smallest group so every group can contribute the same amount
     group_sizes = frame.groupby(balance_columns, dropna=False).size()
     samples_per_group = int(group_sizes.min())
+
+    # spread a requested sample size across all selected groups
     if sample_size is not None:
         samples_per_group = min(
             samples_per_group,
@@ -347,10 +239,12 @@ def _sample_balanced(
     if samples_per_group == 0:
         raise ValueError("sample_size is too small for the selected balancing dimensions")
 
+    # take the same number from each group, then mix the groups together.
     parts = [
         group.sample(n=samples_per_group, random_state=42)
         for _, group in frame.groupby(balance_columns, dropna=False)
     ]
+
     return pd.concat(parts).sample(frac=1, random_state=42).reset_index(drop=True)
 
 
@@ -359,7 +253,7 @@ def train_detector(
     csv_path: str | Path | None = None,
     languages: Iterable[str] | None = None,
     sample_size: int | None = None,
-    balance_classes: bool = True,
+    balance_classes: bool = False,
     balance_languages: bool = False,
     balance_models: bool = False,
     exclude_noise: bool = False,
@@ -387,25 +281,54 @@ def train_detector(
     Returns:
         The fitted detector.
 
-    No test data is loaded or evaluated here. Use :func:`evaluate_detector`
-    separately, which allows its language filter to differ from the training
-    language filter.
+    Notes:
+        Use ``dataset_name="both"`` or ``dataset_name="combined"`` to train
+        on the training split from both datasets. In combined mode, leave
+        ``csv_path`` as ``None`` so each dataset can use its own default file.
     """
+    # normalize the dataset name so users can write it with any capitalization
     key = dataset_name.lower()
-    if key not in DATASET_CLASSES:
-        raise ValueError(f"dataset_name must be one of: {', '.join(DATASET_CLASSES)}")
+    is_combined = key in COMBINED_DATASET_NAMES
+    if not is_combined and key not in DATASET_CLASSES:
+        valid_names = [*DATASET_CLASSES, *sorted(COMBINED_DATASET_NAMES)]
+        raise ValueError(f"dataset_name must be one of: {', '.join(valid_names)}")
 
-    dataset_class = DATASET_CLASSES[key]
+    # a single custom path cannot describe two different dataset files
+    if is_combined and csv_path is not None:
+        raise ValueError(
+            "csv_path must be None when training on both datasets; "
+            "each dataset uses its own default CSV path"
+        )
+
+    # build options shared by one dataset or by both datasets.
     common_args: dict[str, Any] = {
         "languages": list(languages) if languages is not None else None,
     }
-    if csv_path is not None:
-        common_args["csv_path"] = csv_path
-    if key == "multisocial":
+
+    # keep the dataset-specific noise option out of MULTITuDE.
+    if not is_combined and key == "multisocial":
         common_args["exclude_noise"] = exclude_noise
 
-    # Load only the official training split so evaluation data cannot affect fit.
-    train_frame = _frame(dataset_class(split="train", **common_args))
+    # choose one loader or both loaders, depending on the requested mode.
+    dataset_keys = ["multisocial", "multitude"] if is_combined else [key]
+    train_frames = []
+
+    # load the requested datasets and extract the columns needed by the detector
+    for dataset_key in dataset_keys:
+        dataset_args = common_args.copy()
+        if csv_path is not None:
+            dataset_args["csv_path"] = csv_path
+        if dataset_key == "multisocial":
+            dataset_args["exclude_noise"] = exclude_noise
+
+        # use training data only, so evaluation data cannot influence the fit.
+        dataset_class = DATASET_CLASSES[dataset_key]
+        train_frames.append(_frame(dataset_class(split="train", **dataset_args)))
+
+    # put both datasets into one table with the same row structure.
+    train_frame = pd.concat(train_frames, ignore_index=True)
+
+    # apply the requested sample size and balancing choices.
     train_frame = _sample_balanced(
         train_frame,
         sample_size,
@@ -414,107 +337,15 @@ def train_detector(
         balance_models=balance_models,
     )
 
+    # train the detector on the prepared text and labels
     detector = BaselineDetector(max_features=max_features, ngram_range=ngram_range)
     detector.fit(train_frame["text"], train_frame["label"])
+
+    # tell the user how many examples were used for this run
     print(f"{dataset_name}: trained on {len(train_frame)} samples")
 
+    # saving is optional, so normal experiments can keep the model in memory
     if save_dir is not None:
         detector.save(save_dir)
 
     return detector
-
-
-def evaluate_detector(
-    detector: BaselineDetector,
-    dataset_name: str,
-    csv_path: str | Path | None = None,
-    languages: Iterable[str] | None = None,
-    sample_size: int | None = None,
-    balance_classes: bool = True,
-    balance_languages: bool = False,
-    balance_models: bool = False,
-    exclude_noise: bool = False,
-    split: str = "test",
-    error_analysis_path: str | Path | None = None,
-    metrics_output_path: str | Path | None = None,
-) -> dict[str, Any]:
-    """Evaluate a fitted detector on a selected dataset split.
-
-    ``languages`` is independent from the language list passed to
-    :func:`train_detector`. For example, train with ``languages=["en"]`` and
-    call this function with ``languages=["nl"]`` to measure cross-language
-    generalization. The detector's TF-IDF vocabulary is reused unchanged.
-
-    Args:
-        detector: A fitted :class:`BaselineDetector`.
-        dataset_name: Either ``"MultiSocial"`` or ``"MULTITuDE"``.
-        csv_path: Optional path overriding the loader's default CSV path.
-        languages: Optional language codes used only for evaluation.
-        sample_size: Optional total number of evaluation examples.
-        balance_classes: Balance human and machine labels independently.
-        balance_languages: Balance the selected evaluation languages.
-        balance_models: Balance the values in the ``multi_label`` column.
-        exclude_noise: For MultiSocial, discard rows marked as potential noise.
-        split: Dataset split to evaluate, normally ``"test"``.
-        error_analysis_path: Optional CSV path for saving only incorrect
-            predictions together with their dataset metadata.
-        metrics_output_path: Optional JSON path for saving overall,
-            per-language, and per-model metrics.
-
-    Returns:
-        A dictionary containing overall metrics and separate metrics grouped
-        by language. Each group also includes ``support``, the number of
-        evaluated samples in that group.
-    """
-    key = dataset_name.lower()
-    if key not in DATASET_CLASSES:
-        raise ValueError(f"dataset_name must be one of: {', '.join(DATASET_CLASSES)}")
-
-    dataset_class = DATASET_CLASSES[key]
-    language_list = list(languages) if languages is not None else None
-    dataset_args: dict[str, Any] = {
-        "split": split,
-        "languages": language_list,
-    }
-    if csv_path is not None:
-        dataset_args["csv_path"] = csv_path
-    if key == "multisocial":
-        dataset_args["exclude_noise"] = exclude_noise
-
-    frame = _frame(dataset_class(**dataset_args))
-    frame = _sample_balanced(
-        frame,
-        sample_size,
-        balance_classes=balance_classes,
-        balance_languages=balance_languages,
-        balance_models=balance_models,
-    )
-
-    detector._check_trained()
-    features = detector.vectorizer.transform(frame["text"])
-    predictions = detector.model.predict(features)
-    probabilities = detector.model.predict_proba(features)[:, 1]
-    confidences = probabilities * predictions + (1 - probabilities) * (1 - predictions)
-    metrics = {
-        "overall": _metrics(frame["label"].to_numpy(), predictions, probabilities),
-        "by_language": _group_metrics(frame, predictions, probabilities, "language"),
-        "by_model": _model_group_metrics(frame, predictions, probabilities),
-    }
-    if error_analysis_path is not None:
-        error_count = _save_errors(
-            frame,
-            predictions,
-            confidences,
-            error_analysis_path,
-        )
-        print(f"Saved {error_count} incorrect samples to {error_analysis_path}")
-    if metrics_output_path is not None:
-        metrics_path = Path(metrics_output_path)
-        metrics_path.parent.mkdir(parents=True, exist_ok=True)
-        metrics_path.write_text(json.dumps(metrics, indent=2, allow_nan=True))
-        print(f"Saved evaluation metrics to {metrics_path}")
-    print(f"{dataset_name} ({split}, {language_list or 'all languages'}): {len(frame)} samples")
-    print(json.dumps(metrics, indent=2))
-    print(classification_report(frame["label"], predictions, target_names=["Human", "Machine"], zero_division=0))
-
-    return metrics

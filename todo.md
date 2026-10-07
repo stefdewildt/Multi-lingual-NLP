@@ -4,27 +4,41 @@ Everyone chooses some detector config to find scores for all the data. Daimy the
 
 ## Daimy
 
-TF-IDF baseline, four training data language configs. 
+TF-IDF baseline, four training data language configs, three different dataset configs (either dataset seperately, and both datasets at the same time)
 
-```python
-from detector.baseline.baseline_detector import train_detector
-train_detector('multisocial', save_dir='detector/baseline/models/multisocial_all')
-train_detector('multisocial', languages=['en'], save_dir='detector/baseline/models/multisocial_en')
-train_detector('multisocial', languages=['fr', 'de', 'en', 'es', 'pt'], save_dir='detector/baseline/models/multisocial_big_eu')
-train_detector('multisocial', languages=['nl', 'et', 'ga', 'gd'], save_dir='detector/baseline/models/multisocial_less_common')
+```python run_baseline.py
 ```
 
 Write job files for all these commands and run on Snellius. 
 
 ```bash
-python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_all
-python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_all
-python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_en
-python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_en
-python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_big_eu
-python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_big_eu
-python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_less_common
-python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_less_common
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_all --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_all 
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_en --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_en 
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_big_eu --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_big_eu 
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multisocial_less_common --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multisocial_less_common 
+
+
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multitude_all 
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multitude_all --dataset-split test
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multitude_en 
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multitude_en --dataset-split test
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multitude_big_eu 
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multitude_big_eu --dataset-split test
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/multitude_less_common 
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/multitude_less_common --dataset-split test
+
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/both_all --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/both_all --dataset-split test
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/both_en --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/both_en --dataset-split test
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/both_big_eu --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/both_big_eu --dataset-split test
+python score.py --detector baseline --dataset multisocial --baseline-weights detector/baseline/models/both_less_common --dataset-split test
+python score.py --detector baseline --dataset multitude --baseline-weights detector/baseline/models/both_less_common --dataset-split test
 ```
 
 ## Ozan
