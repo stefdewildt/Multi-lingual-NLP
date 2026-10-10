@@ -6,21 +6,40 @@ Our main goals of the project is to try to detect AI-generated texts, using some
 
 ## Research Questions
 
-I think our main research question should be something like:
+* Does zero-shot probability curvature detection outperform a supervised TF-IDF + Logistic Regression lexical baseline in identifying machine-generated text?
 
-* How does the detector's performance relate to the language of the input, and the languages the detector was trained on?
-    - Do detectors still work if they were'nt trained on the input text's language.
-    - Does the performance decrease when the input text's language was less prominent in the training data.
-    - Is the detector performance the best for the language that the model was trained on the most (english probably).
-    - Etc.
+* How robust is probability curvature detection across two domains compared to a lexical baseline?
+    
+* How does the detection efficacy of probability curvature methods vary across high-resource versus low-resource languages, and how does it relate to the available languages in the model's training data?
 
-And we could also re-verify other findings:
+## Conclusions
 
-* Do the other findings in [Mireshghallah et al.](literature/2305.09859v4.pdf) hold in a multilingual setting?
-    - Do the smaller detector models still perform better than the bigger ones.
-    - Is it still beneficial if the detector model has a similar architecture as the model that generated the fake text?
-    - Is it still beneficial if the detector model was trained on a similar datasets as the model that generated the fake text?
-    - Etc.
+**Detection Method**
+- fastdetect outperforms detectgpt on both datasets.
+- Text length, language and generator all strongly affect detection.
+- Longer texts are easier to detect, at least on MULTITuDE.
+
+**Text Language**
+- Detection does not get worse for lower-resource languages.
+- The scoring model's training languages affect detection, but not as expected: a model trained on a language is not a better detector for it.
+- An English-only scoring model beats a multilingual one of the same size.
+- TF-IDF detects its own training languages much better than other languages.
+
+**Domain Shift**
+- TF-IDF is strong in its training domain but fails in the other domain.
+- TF-IDF trained on both domains is as good as the best fastdetect.
+- Performance on the two domains correlates, but the domain still matters.
+
+**Model Size**
+- The claim that smaller scoring models detect better only holds for some model families: for Qwen, not for GPT-2.
+
+**Text Generator**
+- Some generators are much harder to detect (Mistral-7B, OPT-IML-30B).
+- Which generator is hard depends on the detector.
+
+**Hyperparameters top-p and top-k**
+- Restricting hurts on MultiSocial, top-k helps on MULTITuDE.
+- The effect depends on text length, language and generator.
 
 ## Datasets
 
