@@ -10,3 +10,6 @@ Mireshghallah et al. `2305.09859v4.pdf` explains the techinique we initially wan
 
 Bao et al. / FastDetect `2310.05130v3` explains an alternative technique which is faster because it doesn't rely on costly perturbations. This will probably now be the we'll be using.
 
+Schoenbach & Rosamond `Standardization.pdf` is chapter 6 (Standardization of rates and ratios) of the textbook Understanding the Fundamentals of Epidemiology. It explains direct standardization: a measure is computed within each stratum (subgroup) and then averaged with the weights of one standard population, so that groups with a different composition can be compared. Our adjusted AUC is the same, with the AUC as the measure and equal weights per subgroup.
+
+Joshi et al. `2020.acl-main.560.pdf` ("The State and Fate of Linguistic Diversity and Inclusion in the NLP World", ACL 2020) sorts languages into 6 classes (0–5) by how much labelled and unlabelled data and tools exist for them. We group our text languages by these classes: high = class 5, upper-mid = 4, mid = 3, low = 0–2 (`resource_level` in `evaluation/groups.py`). The class of every language is listed in https://microsoft.github.io/linguisticdiversity/assets/lang2tax.txt.
