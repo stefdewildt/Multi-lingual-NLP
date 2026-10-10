@@ -1,0 +1,30 @@
+#!/bin/bash
+# fastdetect with Qwen/Qwen3-4B (scoring = reference, analytic, no top-p/top-k),
+# full data, array task 0 = multisocial, 1 = multitude.
+# Set --time from calib_new_models.job's throughput before submitting (it is
+# deliberately invalid until then). If a task runs out of time, resubmit:
+# --resume continues where it stopped.
+#SBATCH --job-name=qwen3-4b-fastdetect
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=18
+#SBATCH --mem=120G
+#SBATCH --time=08:30:00   # calibrated 2026-10-03: 6.5h / 3.2h (pessimistic, includes model load)
+#SBATCH --array=0-1
+#SBATCH --output=qwen3-4b-fastdetect-%A_%a.log
+
+set -eo pipefail
+module purge
+module load 2025
+module load Python/3.13.5-GCCcore-14.3.0
+cd "$HOME/Multi-lingual-NLP"
+source .venv/bin/activate
+
+export HF_HOME="$HOME/hf_cache"
+export HF_HUB_OFFLINE=1
+
+datasets=(multisocial multitude)
+dataset="${datasets[$SLURM_ARRAY_TASK_ID]}"
+
+srun python -u score.py --detector fastdetect --dataset "$dataset" --scoring Qwen/Qwen3-4B --resume

@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=fastdetect_mt_gpt2
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=18
+#SBATCH --mem=120G
+#SBATCH --time=03:00:00   # calibrated: 47.2 rows/s on real gpu_a100 -> ~1.2h for 206330 rows, ~2.5x margin
+#SBATCH --output=slurm-%j.out
+
+module purge
+module load 2025
+module load Python/3.13.5-GCCcore-14.3.0
+cd $HOME/Multi-lingual-NLP
+source .venv/bin/activate
+export HF_HOME=$HOME/hf_cache
+export HF_HUB_OFFLINE=1
+
+srun python score.py --detector fastdetect --dataset multitude --scoring gpt2 \
+    --resume
