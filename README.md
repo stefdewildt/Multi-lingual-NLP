@@ -170,9 +170,6 @@ python eval.py --scores outputs/scores --output outputs/evaluation/figures
 python eval.py --figures
 ```
 
-Use `python score.py --help` and `python eval.py --help` for the complete list
-of filters, language/domain options, device settings, and output controls.
-
 ## Repository structure
 
 ```text
@@ -185,7 +182,6 @@ of filters, language/domain options, device settings, and output controls.
 │   ├── fast.py               Fast-DetectGPT conditional curvature
 │   └── perturbation.py       DetectGPT perturbation detector
 ├── evaluation/               AUC calculations, grouping, plots, and styling
-├── fastdetect/               Upstream Fast-DetectGPT scripts and experiments
 ├── figures/                  Figures included in the report
 ├── literature/               Local copies of relevant papers and notes
 ├── outputs/                  Scores, baseline analyses, and generated plots
