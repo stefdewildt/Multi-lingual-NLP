@@ -187,7 +187,6 @@ of filters, language/domain options, device settings, and output controls.
 ├── evaluation/               AUC calculations, grouping, plots, and styling
 ├── fastdetect/               Upstream Fast-DetectGPT scripts and experiments
 ├── figures/                  Figures included in the report
-├── jobs/                     Batch/HPC job definitions
 ├── literature/               Local copies of relevant papers and notes
 ├── outputs/                  Scores, baseline analyses, and generated plots
 ├── utils/                    Shared utilities
