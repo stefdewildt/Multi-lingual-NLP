@@ -2,7 +2,7 @@
 
 method_{length,language,generator}.png: AUC per detector and text length / language / generator
 language_baselines.png: baselines on their own training languages and on the others
-language_scoring_model.png: fastdetect per scoring model family and text language
+language_resource.png: fastdetect's adjusted AUC per text language, one panel per dataset
 language_ab_test.png: an English-only against a multilingual scoring model of the same size
 size.png: fastdetect against the size of its scoring model
 """
@@ -11,36 +11,30 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from collections.abc import Sequence
 from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import TwoSlopeNorm
 from matplotlib.lines import Line2D
-from matplotlib.patches import Rectangle
 from matplotlib.ticker import NullFormatter
 
 from evaluation.auc import LENGTH_LABELS
 from evaluation.data import Detector, View
-from evaluation.figures import adjusted_auc, dataset_name, finish, mark_resource_levels, short_name
+from evaluation.figures import FAMILIES, adjusted_auc, dataset_name, finish, heatmap, mark_resource_levels, \
+    resource_level_gaps, short_name
 from evaluation.groups import baseline_languages, baseline_trained_on, baseline_training_languages, by_resource_level
-from evaluation.style import AUC_CMAP, INK, INK_SECONDARY, SERIES, SURFACE, method_style
+from evaluation.style import INK, INK_SECONDARY, MUTED, SERIES, SURFACE, method_style
 
 GENERATORS = ["gpt-3.5-turbo-0125", "gemini", "Llama-2-70b-chat-hf", "vicuna-13b", "Mistral-7B-Instruct-v0.2",
               "aya-101", "opt-iml-max-30b", "v5-Eagle-7B-HF"]
 """The models that wrote the machine texts, in the order the figures show them."""
 
-FAMILIES = ["Qwen", "EuroLLM", "Llama", "SmolLM2", "GPT-2"]
-"""The scoring model families, from most to fewest training languages (119, 35, 8, English only)."""
-
-
 def draw(view: View, output: Path) -> None:
     for variable in ("length", "language", "generator"):
         method_heatmap(view, variable, output)
+    language_resource(view, output)
     language_baselines(view, output)
-    language_scoring_model(view, output)
     language_ab_test(view, output)
     size(view, output)
 
@@ -74,31 +68,6 @@ def dataset_style(dataset: str) -> tuple[str, Literal["-", "--"]]:
             return "o", "-"
         case _:
             return "s", "--"
-
-
-def heatmap(ax, grid: pd.DataFrame, labels: list[str], colors: list[str], boxed: pd.DataFrame | None = None,
-            gaps: Sequence[int] = ()) -> None:
-    """An annotated AUC heatmap. gaps adds a white line above those rows, boxed frames cells."""
-    values = grid.to_numpy(dtype=float)
-    ax.imshow(values, cmap=AUC_CMAP, norm=TwoSlopeNorm(vmin=0.3, vcenter=0.5, vmax=1.0), aspect="auto")
-    ax.grid(False)
-    for i, j in np.argwhere(~np.isnan(values)):
-        ax.text(j, i, f"{values[i, j]:.2f}", ha="center", va="center", fontsize=7.5,
-                color="white" if values[i, j] > 0.8 or values[i, j] < 0.38 else INK)
-    if boxed is not None:
-        for i, j in np.argwhere(boxed.to_numpy(dtype=bool)):
-            ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, fill=False, edgecolor=INK, linewidth=1.6))
-    for i in gaps:
-        ax.axhline(i - 0.5, color=SURFACE, linewidth=5)
-    ax.set_yticks(range(len(labels)))
-    ax.set_yticklabels(labels)
-    for tick, color in zip(ax.get_yticklabels(), colors):
-        tick.set_color(color)
-    ax.set_xticks(range(values.shape[1]))
-    ax.set_xticklabels(grid.columns)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.tick_params(length=0)
 
 
 # method_<variable>.png
@@ -152,13 +121,49 @@ def method_heatmap(view: View, variable: str, output: Path) -> None:
                              gridspec_kw={"height_ratios": heights}, squeeze=False)
     for ax, (dataset, detectors, grid) in zip(axes[:, 0], panels):
         gaps = [i for i in range(1, len(detectors)) if detectors[i].method != detectors[i - 1].method]
-        heatmap(ax, grid, [short_name(d) for d in detectors], [method_style(d.method)[0] for d in detectors],
-                        gaps=gaps)
+        columns = list(grid.columns)
+        x = heatmap(ax, grid, [short_name(d) for d in detectors], [method_style(d.method)[0] for d in detectors],
+                    gaps=gaps, column_gaps=resource_level_gaps(columns) if variable == "language" else ())
         if variable == "language":
-            mark_resource_levels(ax, list(grid.columns), {language: i for i, language in enumerate(grid.columns)})
+            mark_resource_levels(ax, columns, dict(zip(columns, x)), separators=False)
         ax.set_title(dataset_name(dataset), loc="left", fontweight="bold", pad=14 if variable == "language" else 6)
     axes[-1, 0].set_xlabel(name)
     finish(fig, output / f"method_{variable}.png")
+
+
+# language_resource.png
+
+
+def language_resource(view: View, output: Path) -> None:
+    """fastdetect's adjusted AUC per text language, ordered by resource level, one panel per dataset."""
+    detectors = [d for d in view.detectors if d.method == "fastdetect"]
+    family = {d.key: d.model.family for d in detectors}
+    table = adjusted_auc(view, ["detector", "dataset", "language"], detectors, scope="dataset").dropna(subset=["auc"])
+    table["family"] = table["detector"].map(family)
+    families = list(dict.fromkeys(family.values()))
+    fig, axes = plt.subplots(len(view.datasets), 1, figsize=(9.5, 3.4 * len(view.datasets) + 0.9), squeeze=False)
+    for ax, dataset in zip(axes[:, 0], view.datasets):
+        part = table[table["dataset"] == dataset]
+        languages = by_resource_level(part["language"])
+        for i, name in enumerate(families):
+            line = part[part["family"] == name].groupby("language")["auc"].mean().reindex(languages)
+            ax.plot(range(len(languages)), line.to_numpy(), color=SERIES[i + 1], marker="osD^v"[i % 5], markersize=4,
+                    linewidth=1.0, alpha=0.75, label=f"{name} (mean over sizes)", zorder=2)
+        mean = part.groupby("language")["auc"].mean().reindex(languages)
+        ax.plot(range(len(languages)), mean.to_numpy(), color=INK, linewidth=2.2, marker="o", markersize=5, zorder=3,
+                label="mean over all fastdetect detectors")
+        ax.axhline(0.5, linestyle=":", color=MUTED, linewidth=1.0, zorder=0)
+        ax.set_xticks(range(len(languages)))
+        ax.set_xticklabels(languages)
+        ax.set_xlim(-0.6, len(languages) - 0.4)
+        ax.grid(axis="x", visible=False)
+        mark_resource_levels(ax, languages, {language: i for i, language in enumerate(languages)})
+        ax.set_ylabel("AUC (adjusted)")
+        ax.set_title(dataset_name(dataset), loc="left", fontweight="bold", pad=14)
+    axes[-1, 0].set_xlabel("text language")
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=7)
+    finish(fig, output / "language_resource.png", bottom=0.09)
 
 
 # language_baselines.png
@@ -203,33 +208,6 @@ def language_baselines(view: View, output: Path) -> None:
         heatmap(ax, grid, [baseline_label(d) for d in baselines], [INK_SECONDARY] * len(baselines), gaps=gaps)
         ax.set_title(dataset_name(dataset), fontweight="bold")
     finish(fig, output / "language_baselines.png")
-
-
-# language_scoring_model.png
-
-
-def language_scoring_model(view: View, output: Path) -> None:
-    """fastdetect's adjusted AUC per model family and language. Training languages are framed."""
-    fast = [d for d in view.detectors if d.method == "fastdetect"]
-    model = {d.key: d.model for d in fast}
-    training = {m.family: m.training_languages for m in model.values()}
-    table = adjusted_auc(view, ["detector", "dataset", "language"], fast, scope="dataset").dropna(subset=["auc"])
-    table["family"] = table["detector"].map({key: m.family for key, m in model.items()})
-    sizes = table.groupby("family")["detector"].nunique()
-    fig, axes = plt.subplots(len(view.datasets), 1, figsize=(11, 0.9 + 2.5 * len(view.datasets)), squeeze=False)
-    for ax, dataset in zip(axes[:, 0], view.datasets):
-        part = table[table["dataset"] == dataset]
-        families = [f for f in FAMILIES if f in set(part["family"])]
-        languages = by_resource_level(part["language"])
-        grid = part.groupby(["family", "language"])["auc"].mean().unstack().reindex(index=families, columns=languages)
-        boxed = pd.DataFrame([[language in training[f] for language in languages] for f in families],
-                             index=families, columns=languages)
-        labels = [f"{f} (mean of sizes)" if sizes[f] > 1 else f for f in families]
-        heatmap(ax, grid, labels, [INK_SECONDARY] * len(families), boxed=boxed)
-        mark_resource_levels(ax, languages, {language: i for i, language in enumerate(languages)})
-        ax.set_title(dataset_name(dataset), loc="left", fontweight="bold", pad=14)
-    axes[-1, 0].set_xlabel("text language")
-    finish(fig, output / "language_scoring_model.png")
 
 
 # language_ab_test.png
