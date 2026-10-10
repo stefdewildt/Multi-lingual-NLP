@@ -41,7 +41,7 @@ def cached_token_lengths(
 ) -> pd.Series:
     """Token length for each of `texts`. Rows already cached for this 
     (dataset, tokenizer_model) with a matching dataset_csv_sha256 are 
-    reused. Rverything else is tokenized and the cache file is updated."""
+    reused. Everything else is tokenized and the cache file is updated."""
     cache = pd.read_csv(cache_path) if cache_path.exists() else pd.DataFrame(columns=CACHE_COLUMNS)
     own = pd.DataFrame({"dataset": dataset, "row_id": row_ids.to_numpy(), "text": texts.to_numpy()})
     subset = cache[(cache["dataset"] == dataset) & (cache["tokenizer_model"] == tokenizer_model)]
@@ -50,9 +50,14 @@ def cached_token_lengths(
 
     if stale.any():
         tokenizer = load_tokenizer(tokenizer_model)
-        merged.loc[stale, "token_length"] = merged.loc[stale, "text"].map(
-            lambda t: text_length(str(t), "tokens", tokenizer)
-        )
+        # batched, the tokenizer is much faster on a list than text by text,
+        # and counts the same as text_length does
+        texts_stale = merged.loc[stale, "text"].astype(str).tolist()
+        lengths: list[int] = []
+        for start in range(0, len(texts_stale), 1000):
+            batch = tokenizer(texts_stale[start : start + 1000], add_special_tokens=False).input_ids
+            lengths.extend(len(ids) for ids in batch)
+        merged.loc[stale, "token_length"] = lengths
         new_rows = merged.loc[stale, ["row_id", "token_length"]].assign(
             dataset=dataset, tokenizer_model=tokenizer_model, dataset_csv_sha256=dataset_csv_sha256
         )[CACHE_COLUMNS]
