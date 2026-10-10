@@ -17,8 +17,7 @@ TF-IDF + Logistic Regression lexical baseline.
 
 ## Main conclusions
 
-The conclusions below summarize the experiments currently represented in
-`outputs/` and `figures/`.
+The conclusions below summarize the experiments currently represented in `figures/`.
 
 - **Detection method:** Fast-DetectGPT outperforms DetectGPT on both datasets.
   Text length, language, and generator all have a strong effect; on MULTITuDE,
@@ -105,16 +104,8 @@ python score.py `
   --fastdetect-mode analytic `
 ```
 
-For a quick test, add `--dataset-limit 10`. To use a separate reference
-model, set `--fastdetect-reference` to another Hugging Face model with
-compatible tokenization. Sampling mode is also available:
+For a quick test, add `--dataset-limit 10`.
 
-```powershell
-python score.py --detector fastdetect --dataset multisocial `
-  --scoring gpt2 --fastdetect-reference gpt2 `
-  --fastdetect-mode sampling --fastdetect-n-samples 100 `
-  --dataset-limit 10
-```
 
 ### DetectGPT
 
@@ -130,8 +121,7 @@ python score.py `
   --detectgpt-n-perturbations 10 `
 ```
 
-The default metric is the per-token average, which reduces sequence-length
-bias. Increase `--detectgpt-n-perturbations` for a more stable but slower
+Increase `--detectgpt-n-perturbations` for a more stable but slower
 estimate. Start with `--dataset-limit 10` before launching a full run.
 
 ### TF-IDF + Logistic Regression baseline
@@ -157,8 +147,7 @@ python score.py `
 ```
 
 The baseline can be evaluated cross-domain by pointing `--baseline-weights` at
-a model trained on the other dataset. Existing pre-trained baseline artifacts
-may already be present in `detector/baseline/models/`.
+a model trained on the other dataset. 
 
 ### Outputs and evaluation
 
