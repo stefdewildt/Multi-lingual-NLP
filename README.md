@@ -208,8 +208,7 @@ This repository implements and compares:
   [original Fast-DetectGPT repository](https://github.com/baoguangsheng/fast-detect-gpt)
   and [Fast-DetectGPT paper](literature/2310.05130v3.pdf).
 
-The `fastdetect/` directory contains the upstream implementation and scripts
-used as a starting point. The top-level `detector/` and `score.py` provide the
+The original repositories are used as a starting point. The top-level `detector/` and `score.py` provide the
 adapted, dataset-aware workflow used for the multilingual experiments.
 
 ## Authors
