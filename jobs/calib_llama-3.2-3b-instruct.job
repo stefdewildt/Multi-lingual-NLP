@@ -1,0 +1,26 @@
+#!/bin/bash
+# Calibration for Llama-3.2-3B-Instruct alone: it was gated when
+# calib_new_models.job ran (no access yet), so it gets its own run.
+#SBATCH --job-name=calib-llama-3b
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=18
+#SBATCH --mem=120G
+#SBATCH --time=00:20:00
+#SBATCH --output=calib-llama-3b-%j.log
+
+set -eo pipefail
+module purge
+module load 2025
+module load Python/3.13.5-GCCcore-14.3.0
+cd "$HOME/Multi-lingual-NLP"
+source .venv/bin/activate
+
+export HF_HOME="$HOME/hf_cache"
+export HF_HUB_OFFLINE=1
+
+for dataset in multisocial multitude; do
+    srun python -u score.py --detector fastdetect --dataset "$dataset" --scoring meta-llama/Llama-3.2-3B-Instruct \
+        --dataset-limit 300 --run-folder "_calib_meta-llama-Llama-3.2-3B-Instruct_$dataset"
+done
