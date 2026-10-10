@@ -4,7 +4,7 @@
 
 This module provides a simple baseline classifier for detecting machine-generated vs human-written text from the MultiSocial and MULTITuDE datasets. It uses **TF-IDF features** combined with **Logistic Regression** for fast training and inference.
 
-## Quick Start
+## Set-Up
 
 ### Training on English Data
 

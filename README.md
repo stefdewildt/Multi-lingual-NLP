@@ -1,64 +1,240 @@
-# Generated Text Detection in a Multilingual Setting using Curvature Methods
+# Multilingual AI-Generated Text Detection
 
-This repo holds code and files related to the MiniProject for our university course "Multilingual Natural Language Processing", for Msc AI.  
+This project studies whether probability-curvature methods can detect
+machine-generated text across languages and domains. We compare two
+zero-shot detectors: DetectGPT and the faster Fast-DetectGPT, with a supervised
+TF-IDF + Logistic Regression lexical baseline.
 
-Our main goals of the project is to try to detect AI-generated texts, using something similar to the curvative method described in [Mireshghallah et al.](literature/2305.09859v4.pdf). But we differ in the fact that we will not be testing whether the size or architecture of the model matter (like Mireshghallah et al.), but we will test whether language matters. [Bao et al.](literature/2310.05130v3.pdf) introduce a faster alternative to Mireshghallah et al., using conditional curvature. This is the technique we'll be using.
 
-## Research Questions
+## Research questions
 
-* Does zero-shot probability curvature detection outperform a supervised TF-IDF + Logistic Regression lexical baseline in identifying machine-generated text?
+1. Does zero-shot probability-curvature detection outperform a supervised
+   TF-IDF + Logistic Regression lexical baseline?
+2. How robust are curvature detectors across the news and social-media
+   domains?
+3. How does detection vary between high-resource and lower-resource languages,
+   and how does it relate to the languages represented in a scoring model?
 
-* How robust is probability curvature detection across two domains compared to a lexical baseline?
-    
-* How does the detection efficacy of probability curvature methods vary across high-resource versus low-resource languages, and how does it relate to the available languages in the model's training data?
+## Main conclusions
 
-## Conclusions
+The conclusions below summarize the experiments currently represented in
+`outputs/` and `figures/`.
 
-**Detection Method**
-- fastdetect outperforms detectgpt on both datasets.
-- Text length, language and generator all strongly affect detection.
-- Longer texts are easier to detect, at least on MULTITuDE.
+- **Detection method:** Fast-DetectGPT outperforms DetectGPT on both datasets.
+  Text length, language, and generator all have a strong effect; on MULTITuDE,
+  longer texts are generally easier to detect.
+- **Language:** Detection does not consistently degrade for lower-resource
+  languages. The scoring model's training languages matter, but a model
+  trained on a language is not automatically a better detector for that
+  language. An English-only scoring model outperforms a similarly sized
+  multilingual model in these experiments.
+- **Domain shift:** TF-IDF is strong in its training domain but transfers
+  poorly to the other domain. Training TF-IDF on both domains makes it
+  competitive with the strongest Fast-DetectGPT configuration, although the
+  domain still affects results.
 
-**Text Language**
-- Detection does not get worse for lower-resource languages.
-- The scoring model's training languages affect detection, but not as expected: a model trained on a language is not a better detector for it.
-- An English-only scoring model beats a multilingual one of the same size.
-- TF-IDF detects its own training languages much better than other languages.
+## Additional findings
 
-**Domain Shift**
-- TF-IDF is strong in its training domain but fails in the other domain.
-- TF-IDF trained on both domains is as good as the best fastdetect.
-- Performance on the two domains correlates, but the domain still matters.
+The findings below are not directly connected to our main research questions or experiments, but are a result of additional experiments and still relevant to the research:
 
-**Model Size**
-- The claim that smaller scoring models detect better only holds for some model families: for Qwen, not for GPT-2.
+- **Model size:** The claim that smaller scoring models are always better
+  detectors is model-family dependent: it holds for some Qwen configurations,
+  but not for GPT-2 in our experiments.
+- **Generator:** Some generators, notably Mistral-7B and OPT-IML-30B, are
+  substantially harder to detect. Which generator is hardest also depends on the
+  detector.
+- **Generation controls:** Restricting `top-p`/`top-k` hurts performance on
+  MultiSocial but `top-k` helps on MULTITuDE. The effect depends on language,
+  length, and generator.
 
-**Text Generator**
-- Some generators are much harder to detect (Mistral-7B, OPT-IML-30B).
-- Which generator is hard depends on the detector.
+These are empirical findings for the configurations and datasets in this
+repository, not a claim that any detector can reliably identify all
+machine-generated text.
 
-**Hyperparameters top-p and top-k**
-- Restricting hurts on MultiSocial, top-k helps on MULTITuDE.
-- The effect depends on text length, language and generator.
+## Setup
+
+From the repository root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+The experiments use PyTorch and Hugging Face Transformers. A CUDA-capable
+installation is recommended for scoring larger models; `score.py --device
+auto` selects CUDA, Apple MPS, or CPU when available. Models downloaded from
+Hugging Face are cached locally on first use.
 
 ## Datasets
 
-We will be making use of the MULTITuDE and MultiSocial dataset containing the following fields per sample
+Download the CSV files and place them at the following paths:
 
-* 'text' - a text sample
-* 'label' - 0 for human-written text, 1 for machine-generated text,
-* 'multi_label' - a string representing a large language model that generated the text or the string "human" representing a human-written text,
-* 'split' - a string identifying train or test split of the dataset for the purpose of training and evaluation respectively,
-* 'language' - the ISO 639-1 language code identifying the language of the given text,
-* 'length' - word count of the given text,
-* 'source' - a string identifying the source dataset / news medium of the given text.
+```text
+datasets/MULTITuDE/multitude.csv
+datasets/MultiSocial/multisocial.csv
+```
 
-For more detail check out the `./datasets` folder.
+The files are intentionally not distributed with the repository. See the
+dataset-specific documentation for source links, statistics, fields, and
+usage notes:
 
-## Fast Detect GPT
+- [MULTITuDE documentation](datasets/MULTITuDE/README.md)
+- [MultiSocial documentation](datasets/MultiSocial/README.md)
 
-Some people made an implementation of this idea (but with conditional curvature, unlike Mireshghallah et al.) called `fast-detect-gpt`. Their repo has been merged into ours under `./fastdetect`. We'll be taking this as a starting point.
+Both datasets use the same core columns: `text`, `label`,
+`multi_label`, `split`, `language`, `length`, and `source`. A label of `0`
+denotes human text and `1` denotes machine-generated text.
 
-## Other
+## Running detectors
 
-I think there might be usefull literature and tools in this Github [repo](https://github.com/junchaoIU/LLM-generated-Text-Detection) containing links to all kinds of related papers and tools. 
+All commands below should be run from this directory.
+
+### Fast-DetectGPT
+
+Fast-DetectGPT uses conditional probability curvature. The analytic mode is
+the default and does not require Monte Carlo samples:
+
+```powershell
+python score.py `
+  --detector fastdetect `
+  --dataset multitude `
+  --scoring gpt2 `
+  --fastdetect-reference gpt2 `
+  --fastdetect-mode analytic `
+```
+
+For a quick test, add `--dataset-limit 10`. To use a separate reference
+model, set `--fastdetect-reference` to another Hugging Face model with
+compatible tokenization. Sampling mode is also available:
+
+```powershell
+python score.py --detector fastdetect --dataset multisocial `
+  --scoring gpt2 --fastdetect-reference gpt2 `
+  --fastdetect-mode sampling --fastdetect-n-samples 100 `
+  --dataset-limit 10
+```
+
+### DetectGPT
+
+DetectGPT estimates curvature using perturbed texts generated by a
+mask-filling model:
+
+```powershell
+python score.py `
+  --detector detectgpt `
+  --dataset multitude `
+  --scoring gpt2 `
+  --detectgpt-mask google/mt5-small `
+  --detectgpt-n-perturbations 10 `
+```
+
+The default metric is the per-token average, which reduces sequence-length
+bias. Increase `--detectgpt-n-perturbations` for a more stable but slower
+estimate. Start with `--dataset-limit 10` before launching a full run.
+
+### TF-IDF + Logistic Regression baseline
+
+Train the repository's baseline models:
+
+```powershell
+python run_baseline.py
+```
+
+This trains models for both datasets, the combined data, and several language
+subsets. Training writes model and vectorizer files below
+`detector/baseline/models/`.
+
+Score a trained baseline model:
+
+```powershell
+python score.py `
+  --detector baseline `
+  --dataset multitude `
+  --baseline-weights detector/baseline/models/multitude_all `
+  --dataset-split test
+```
+
+The baseline can be evaluated cross-domain by pointing `--baseline-weights` at
+a model trained on the other dataset. Existing pre-trained baseline artifacts
+may already be present in `detector/baseline/models/`.
+
+### Outputs and evaluation
+
+`score.py` writes one configuration directory under `outputs/scores/` with:
+
+```text
+outputs/scores/<configuration>/scores.csv
+outputs/scores/<configuration>/meta.json
+```
+
+Runs are resumable. Use `--resume` when continuing an existing run, and
+`--retry-errors` to retry rows that previously failed. Do not commit large
+generated score files or downloaded model caches.
+
+Create evaluation figures from the scores:
+
+```powershell
+python eval.py
+python eval.py --scores outputs/scores --output outputs/evaluation/figures
+python eval.py --figures
+```
+
+Use `python score.py --help` and `python eval.py --help` for the complete list
+of filters, language/domain options, device settings, and output controls.
+
+## Repository structure
+
+```text
+.
+├── datasets/                 Dataset loaders, documentation, and local CSVs
+│   ├── MULTITuDE/
+│   └── MultiSocial/
+├── detector/                 Detector implementations
+│   ├── baseline/             TF-IDF + Logistic Regression baseline
+│   ├── fast.py               Fast-DetectGPT conditional curvature
+│   └── perturbation.py       DetectGPT perturbation detector
+├── evaluation/               AUC calculations, grouping, plots, and styling
+├── fastdetect/               Upstream Fast-DetectGPT scripts and experiments
+├── figures/                  Figures included in the report
+├── jobs/                     Batch/HPC job definitions
+├── literature/               Local copies of relevant papers and notes
+├── outputs/                  Scores, baseline analyses, and generated plots
+├── utils/                    Shared utilities
+├── eval.py                   Build figures from score files
+├── score.py                  Main scoring CLI
+├── run_baseline.py           Train the baseline model variants
+├── speed.py                  Compare scoring speed
+├── example.ipynb             Example notebook
+├── requirements.txt          Python dependencies
+└── .gitignore                Excludes datasets, caches, and generated files
+```
+
+## Method and literature
+
+This repository implements and compares:
+
+- **DetectGPT:** probability curvature estimated by perturbing an input and
+  comparing its log probability with the perturbed neighbors. See the
+  [original DetectGPT repository](https://github.com/eric-mitchell/detect-gpt)
+  and [DetectGPT paper](literature/2305.09859v4.pdf).
+- **Fast-DetectGPT:** conditional probability curvature, with an analytic
+  estimator or a sampling-based estimator. See the
+  [original Fast-DetectGPT repository](https://github.com/baoguangsheng/fast-detect-gpt)
+  and [Fast-DetectGPT paper](literature/2310.05130v3.pdf).
+
+The `fastdetect/` directory contains the upstream implementation and scripts
+used as a starting point. The top-level `detector/` and `score.py` provide the
+adapted, dataset-aware workflow used for the multilingual experiments.
+
+## Authors
+- Daimy van Loo
+
+- Pepijn van der Klei
+
+- Ozan Ilhan
+
+- Julian Noortwijk
+
+- Stef de Wildt
