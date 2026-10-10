@@ -11,3 +11,4 @@ accelerate
 tqdm
 matplotlib
 seaborn
+jupyter
