@@ -191,6 +191,7 @@ python eval.py --figures
 ├── run_baseline.py           Train the baseline model variants
 ├── speed.py                  Compare scoring speed
 ├── example.ipynb             Example notebook
+├── visualize.ipynb           Build figures about initial data csv's 
 ├── requirements.txt          Python dependencies
 └── .gitignore                Excludes datasets, caches, and generated files
 ```
